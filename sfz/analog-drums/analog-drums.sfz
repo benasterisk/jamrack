@@ -1,0 +1,32 @@
+// Analog Drums — JAMRACK built-in
+// Same circuits as the 808 kit but tighter, with 3-way round robin so repeated
+// hits vary instead of machine-gunning. Synthesised for this app.
+<control>
+default_path=samples/
+
+<global>
+pitch_keytrack=0
+loop_mode=one_shot
+ampeg_release=0.15
+
+<group> // kick, 3 alternating takes
+key=36 seq_length=3
+<region> sample=kick_rr1.ogg seq_position=1
+<region> sample=kick_rr2.ogg seq_position=2
+<region> sample=kick_rr3.ogg seq_position=3
+
+<group> // snare, 3 takes, softer below velocity 64
+key=38 seq_length=3
+<region> sample=snare_rr1.ogg seq_position=1
+<region> sample=snare_rr2.ogg seq_position=2
+<region> sample=snare_rr3.ogg seq_position=3
+
+<group> // hats, choking each other
+key=42 seq_length=3 group=1 off_by=1 volume=-6
+<region> sample=hat_rr1.ogg seq_position=1
+<region> sample=hat_rr2.ogg seq_position=2
+<region> sample=hat_rr3.ogg seq_position=3
+
+<group>
+<region> sample=clap.ogg key=39 volume=-2
+<region> sample=rim.ogg  key=37 volume=-3

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d0b09">
+<meta name="description" content="JAMRACK — online jam piano & synth. No piano? Play with your AZERTY/QWERTY computer keyboard, a touchscreen or a MIDI keyboard.">
+<title>JAMRACK · Online jam piano &amp; synth</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎹</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://gleitz.github.io" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;800&family=Barlow+Condensed:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <div class="brand">
+      <div class="brand-name">JAM<span>RACK</span></div>
+      <div class="brand-sub" id="tagline"></div>
+    </div>
+
+    <div class="topbar-controls">
+      <div class="tb-group" id="metroGroup">
+        <button class="tb-btn led-btn" id="metroToggle" aria-pressed="false">
+          <span class="led"></span><span data-t="metro"></span>
+        </button>
+        <input id="bpmInput" type="number" min="30" max="300" step="1" value="100">
+        <span class="tb-unit" data-t="bpm"></span>
+      </div>
+
+      <div class="tb-group">
+        <button class="tb-btn led-btn rec" id="recBtn" aria-pressed="false">
+          <span class="led"></span><span data-t="rec"></span>
+        </button>
+        <span id="recTime" class="mono">0:00</span>
+      </div>
+
+      <div class="tb-group" id="midiGroup">
+        <span class="led" id="midiLed"></span>
+        <span class="tb-label" data-t="midi"></span>
+      </div>
+
+      <div class="tb-group">
+        <select id="langSelect" class="lang-select"></select>
+        <button class="tb-btn" id="banksBtn"></button>
+        <button class="tb-btn" id="helpBtn">?</button>
+      </div>
+    </div>
+
+    <!-- Mobile only: the screen is too small to show the rack and the keyboard
+         at once, so they become two dedicated views. Hidden on desktop. -->
+    <div id="viewTabs" role="tablist">
+      <button class="vt-btn is-on" id="tabPlay" role="tab" aria-selected="true" data-t="tabPlay"></button>
+      <button class="vt-btn" id="tabEdit" role="tab" aria-selected="false" data-t="tabEdit"></button>
+    </div>
+  </header>
+
+  <div id="audioHint" hidden>
+    <span>🔊</span> <span id="audioHintText"></span>
+  </div>
+
+  <main id="rack">
+    <!-- modules built by js/ui/rack.js -->
+  </main>
+
+  <section id="kbZone">
+    <div id="kbCtl">
+      <div class="kb-group">
+        <span class="kb-label" data-t="kbOctave"></span>
+        <button class="kb-btn" id="octDown">–</button>
+        <span class="mono kb-read" id="octRead">C4</span>
+        <button class="kb-btn" id="octUp">+</button>
+      </div>
+      <div class="kb-group grow">
+        <span class="kb-label" data-t="velocity"></span>
+        <input type="range" id="velSlider" min="1" max="127" value="100">
+        <span class="mono kb-read" id="velRead">100</span>
+      </div>
+      <div class="kb-group">
+        <span class="led" id="susLed"></span>
+        <span class="kb-label"><span data-t="sustain"></span> <span class="kb-hint" data-t="sustainHint"></span></span>
+      </div>
+      <div class="kb-group">
+        <span class="kb-label" data-t="view"></span>
+        <button class="kb-btn" id="viewLeft">‹</button>
+        <button class="kb-btn" id="viewRight">›</button>
+      </div>
+    </div>
+    <div id="piano"></div>
+  </section>
+
+  <dialog id="banksDlg">
+    <div class="dlg-head">
+      <h2 data-t="banksTitle"></h2>
+      <button class="dlg-close" data-close>✕</button>
+    </div>
+    <div class="dlg-body" id="banksBody"></div>
+  </dialog>
+
+  <dialog id="helpDlg">
+    <div class="dlg-head">
+      <h2 data-t="helpTitle"></h2>
+      <button class="dlg-close" data-close>✕</button>
+    </div>
+    <div class="dlg-body" id="helpBody"></div>
+  </dialog>
+
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

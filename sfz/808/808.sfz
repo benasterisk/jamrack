@@ -1,0 +1,40 @@
+// 808 Kit — JAMRACK built-in
+// Synthesised from scratch for this app: no third-party samples, free to use.
+// General MIDI drum mapping, so external MIDI pads land on the right sounds.
+<control>
+default_path=samples/
+
+<global>
+// Percussion must not be transposed by the key it sits on.
+pitch_keytrack=0
+loop_mode=one_shot
+ampeg_release=0.2
+
+<group> // kicks
+<region> sample=kick.ogg        key=36 volume=-1
+<region> sample=kick_short.ogg  key=35
+
+<group> // snares & claps
+<region> sample=snare.ogg key=38
+<region> sample=rim.ogg   key=37 volume=-3
+<region> sample=clap.ogg  key=39 volume=-2
+<region> sample=snare.ogg key=40 volume=-2 tune=60
+
+<group> // hats — closed chokes open, as on a real kit
+<region> sample=hat_closed.ogg key=42 group=1 off_by=1 volume=-6
+<region> sample=hat_closed.ogg key=44 group=1 off_by=1 volume=-8 tune=-40
+<region> sample=hat_open.ogg   key=46 group=1 off_by=1 volume=-7
+
+<group> // toms
+<region> sample=tom_low.ogg key=41 volume=-3
+<region> sample=tom_low.ogg key=43 volume=-3 tune=90
+<region> sample=tom_mid.ogg key=45 volume=-3
+<region> sample=tom_mid.ogg key=47 volume=-3 tune=90
+<region> sample=tom_hi.ogg  key=48 volume=-3
+<region> sample=tom_hi.ogg  key=50 volume=-3 tune=90
+
+<group> // cymbals & percussion
+<region> sample=cymbal.ogg  key=49 volume=-9
+<region> sample=cymbal.ogg  key=51 volume=-10 tune=120
+<region> sample=cymbal.ogg  key=57 volume=-9 tune=-80
+<region> sample=cowbell.ogg key=56 volume=-7

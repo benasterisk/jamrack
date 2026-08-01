@@ -1,0 +1,40 @@
+// Synth Basses — JAMRACK built-in
+// Three modern bass voices, each multi-sampled every 4 semitones.
+// Keyswitches choose the character: C0 = Reese, C#0 = Sub, D0 = Acid.
+// Synthesised for this app; no third-party samples.
+<control>
+default_path=samples/
+
+<global>
+sw_lokey=12 sw_hikey=14 sw_default=12
+ampeg_attack=0.004
+ampeg_release=0.25
+
+<group> // REESE — detuned saws, DnB / dubstep
+sw_last=12
+<region> sample=reese_28.ogg lokey=0 hikey=29 pitch_keycenter=28
+<region> sample=reese_32.ogg lokey=30 hikey=33 pitch_keycenter=32
+<region> sample=reese_36.ogg lokey=34 hikey=37 pitch_keycenter=36
+<region> sample=reese_40.ogg lokey=38 hikey=41 pitch_keycenter=40
+<region> sample=reese_44.ogg lokey=42 hikey=45 pitch_keycenter=44
+<region> sample=reese_48.ogg lokey=46 hikey=127 pitch_keycenter=48
+
+<group> // SUB — 808-style sine bass
+sw_last=13
+ampeg_release=0.4
+<region> sample=sub_28.ogg lokey=0 hikey=29 pitch_keycenter=28
+<region> sample=sub_32.ogg lokey=30 hikey=33 pitch_keycenter=32
+<region> sample=sub_36.ogg lokey=34 hikey=37 pitch_keycenter=36
+<region> sample=sub_40.ogg lokey=38 hikey=41 pitch_keycenter=40
+<region> sample=sub_44.ogg lokey=42 hikey=45 pitch_keycenter=44
+<region> sample=sub_48.ogg lokey=46 hikey=127 pitch_keycenter=48
+
+<group> // ACID — resonant 303 sweep
+sw_last=14
+ampeg_release=0.15
+<region> sample=acid_28.ogg lokey=0 hikey=29 pitch_keycenter=28
+<region> sample=acid_32.ogg lokey=30 hikey=33 pitch_keycenter=32
+<region> sample=acid_36.ogg lokey=34 hikey=37 pitch_keycenter=36
+<region> sample=acid_40.ogg lokey=38 hikey=41 pitch_keycenter=40
+<region> sample=acid_44.ogg lokey=42 hikey=45 pitch_keycenter=44
+<region> sample=acid_48.ogg lokey=46 hikey=127 pitch_keycenter=48
