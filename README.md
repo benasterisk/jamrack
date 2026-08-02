@@ -6,7 +6,7 @@
 
 JAMRACK is a playable instrument rack — plain **HTML/CSS/JS + the Web Audio API**, with **no build step, no framework, no backend and zero dependencies**. Drop the folder on any static host and it is online.
 
-![no build](https://img.shields.io/badge/build-none-brightgreen) ![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen) ![languages](https://img.shields.io/badge/UI%20languages-12-blue) ![license](https://img.shields.io/badge/runtime-Web%20Audio%20API-orange)
+![no build](https://img.shields.io/badge/build-none-brightgreen) ![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen) ![languages](https://img.shields.io/badge/UI%20languages-12-blue) ![license](https://img.shields.io/badge/license-MIT-blue) ![runtime](https://img.shields.io/badge/runtime-Web%20Audio%20API-orange)
 
 ---
 
@@ -90,3 +90,7 @@ Per-module audio chain: `voices → filter → volume → pan → mute → out`,
 
 - GM soundfonts: [gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) (CDN).
 - Built-in SFZ banks assembled from CC0 samples.
+
+## License
+
+[MIT](LICENSE) — free forever. Use it, fork it, learn from it.
