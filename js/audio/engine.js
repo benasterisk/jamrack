@@ -10,7 +10,12 @@ import { debounce } from '../util.js';
 export class Engine {
   constructor() {
     const AC = window.AudioContext || window.webkitAudioContext;
-    this.ctx = new AC({ latencyHint: 'interactive' });
+    // 'interactive' is the platform's usual low-latency buffer; a numeric 0
+    // asks for the smallest one the device supports (Chrome clamps it to what
+    // it considers safe), which matters for the GUITAR → MIDI section. Phones
+    // keep the default: their minimum glitches under a loaded rack.
+    const desktop = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    this.ctx = new AC({ latencyHint: desktop ? 0 : 'interactive' });
 
     this.master = this.ctx.createGain();
     // Instruments apply their own make-up gain (sampled banks are mastered

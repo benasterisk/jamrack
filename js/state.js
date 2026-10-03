@@ -67,6 +67,22 @@ export function defaultSampler() {
   };
 }
 
+// The GUITAR → MIDI section (js/input/guitar.js + js/audio/guitar/). Whether
+// it is running is never saved: starting it asks for the audio input, which
+// must stay a deliberate gesture.
+export function defaultGuitar() {
+  return {
+    deviceId: '',       // chosen audio input ('' = the browser's default)
+    gain: 1,            // input gain 0.1..10
+    sens: 0.5,          // 0..1 onset sensitivity
+    release: 0.5,       // 0..1 how far a string may decay before note-off
+    dyn: 0.7,           // 0..1 velocity dynamics
+    bend: true,         // bends/vibrato become pitch bend (false = chromatic)
+    octave: 0,          // -2..2
+    collapsed: false,
+  };
+}
+
 export function defaultInstance(overrides = {}) {
   return {
     id: uid(),
@@ -121,6 +137,7 @@ function defaultState() {
       layout: 'auto',   // 'auto' | 'azerty' | 'qwerty'
     },
     metronome: { bpm: 100, on: false },
+    guitar: defaultGuitar(),
     customBanks: [],
     // low: lowest note shown on the piano (C3).
     // mobile: which view is showing on narrow screens ('play' | 'edit'),
@@ -156,6 +173,7 @@ function load() {
     Object.assign(st.kb, saved.kb || {});
     Object.assign(st.metronome, saved.metronome || {});
     st.metronome.on = false;
+    Object.assign(st.guitar, saved.guitar || {});
     if (Array.isArray(saved.customBanks)) st.customBanks = saved.customBanks;
     Object.assign(st.view, saved.view || {});
     if (typeof saved.lang === 'string') st.lang = saved.lang;
@@ -192,6 +210,7 @@ const scheduleSave = debounce(() => {
       master: state.master,
       kb: state.kb,
       metronome: { bpm: state.metronome.bpm, on: false },
+      guitar: state.guitar,
       customBanks: state.customBanks,
       view: state.view,
       lang: state.lang,

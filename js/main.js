@@ -17,6 +17,7 @@ import { Metronome } from './audio/metronome.js';
 import { Recorder } from './audio/recorder.js';
 import { attachPcKeyboard, getKeyLabels, NOTE_CODES } from './input/pckeys.js';
 import { initMidi } from './input/midi.js';
+import { createGuitarInput } from './input/guitar.js';
 import { createRack } from './ui/rack.js';
 import { createPiano } from './ui/piano.js';
 import { setupDialogs } from './ui/dialogs.js';
@@ -375,7 +376,53 @@ const rack = createRack(document.getElementById('rack'), {
     engine.setDelay(state.master.delayTime, state.master.delayFeedback);
     emit('master');
   }, 30),
+  // --- GUITAR → MIDI section (the input object is created right below)
+  async guitarToggle() {
+    if (guitar.running) { guitar.stop(); return; }
+    await engine.resume();
+    await guitar.start(state.guitar.deviceId);
+  },
+  async guitarDevice(id) {
+    state.guitar.deviceId = id;
+    emit('guitar');
+    if (guitar.running) await guitar.start(id);
+  },
+  guitarChanged() {
+    applyGuitarParams();
+    emit('guitar');
+  },
+  guitarRunning: () => guitar.running,
+  guitarDevices: () => guitar.devices,
+  guitarStatusText: () => guitarStatusText(guitar.status),
 });
+
+// ---------------------------------------------------------------- guitar → MIDI
+// A sixth way to play: an audio input tracked into notes. It feeds the same
+// routing as the MIDI keyboard, so every module with PLAY on answers to it.
+
+const guitar = createGuitarInput(engine.ctx, {
+  noteOn: (midi, vel) => routeNoteOn(midi, vel),
+  noteOff: midi => routeNoteOff(midi),
+  bend: routeBend,
+  meter: info => rack.setGuitarMeter(info, guitar.latency()),
+  status: st => rack.setGuitarStatus(guitarStatusText(st), st.key === 'noMic' || st.key === 'denied'),
+  devices: (list, id) => rack.setGuitarDevices(list, id),
+  running: on => rack.setGuitarRunning(on),
+});
+
+function applyGuitarParams() {
+  const g = state.guitar;
+  guitar.setGain(g.gain);
+  guitar.setParams({ sens: g.sens, release: g.release, dyn: g.dyn, bend: g.bend, octave: g.octave });
+}
+applyGuitarParams();
+
+function guitarStatusText(st) {
+  const key = { off: 'gtrOff', starting: 'gtrStarting', listening: 'gtrListening', compat: 'gtrCompat',
+    noMic: 'gtrNoMic', denied: 'gtrDenied', ended: 'gtrEnded' }[st.key] || 'gtrOff';
+  const detail = st.detail ? ` — ${st.detail}` : '';
+  return t(key) + detail;
+}
 
 // ---------------------------------------------------------------- touch piano
 

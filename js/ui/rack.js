@@ -107,6 +107,7 @@ export function createRack(container, api) {
     container.innerHTML = '';
     cards.clear();
     container.appendChild(buildMaster());
+    container.appendChild(buildGuitar());
     state.instances.forEach(inst => container.appendChild(buildCard(inst)));
     const add = el(`<div id="addModule">
       <span class="add-label">${esc(t('addTitle'))}</span>
@@ -147,6 +148,151 @@ export function createRack(container, api) {
       onInput: v => { m.delayFeedback = v; api.masterChanged(); },
     }).el);
     return root;
+  }
+
+  // ------------------------------------------------------------ GUITAR → MIDI
+  // An input, not an instrument: what it hears is played by every module
+  // whose PLAY switch is on, exactly like a MIDI keyboard. The display is a
+  // tuner (note heard, cents) plus the input level and the measured latencies.
+  let gtr = null;   // { root, lcd, led, sel, noteEl, centsEl, meter, lat }
+
+  function buildGuitar() {
+    const g = state.guitar;
+    const root = el(`<section class="module guitar ${g.collapsed ? 'collapsed' : ''}">
+      <div class="mod-head">
+        <button class="mod-power gtr-power" title="${esc(t('gtrTitlePower'))}"><span class="led"></span></button>
+        <span class="master-title gtr-title">${esc(t('gtrTitle'))}</span>
+        <div class="mod-lcd gtr-lcd">—</div>
+        <div class="mod-selects">
+          <select class="sel-bank sel-input" title="${esc(t('gtrTitleDevice'))}"></select>
+        </div>
+        <div class="mod-btns">
+          <button class="sq-btn btn-fold" title="${esc(t('titleFold'))}">${g.collapsed ? '▸' : '▾'}</button>
+        </div>
+      </div>
+      <div class="mod-body">
+        <div class="gtr-tuner" title="${esc(t('gtrTitleTuner'))}">
+          <div class="gtr-note">—</div>
+          <div class="gtr-cents"><i></i></div>
+          <canvas class="gtr-meter" width="90" height="26"></canvas>
+          <div class="gtr-lat mono"></div>
+        </div>
+      </div>
+    </section>`);
+    const body = root.querySelector('.mod-body');
+    gtr = {
+      root,
+      lcd: root.querySelector('.gtr-lcd'),
+      led: root.querySelector('.gtr-power .led'),
+      sel: root.querySelector('.sel-input'),
+      noteEl: root.querySelector('.gtr-note'),
+      centsEl: root.querySelector('.gtr-cents'),
+      meter: root.querySelector('.gtr-meter'),
+      lat: root.querySelector('.gtr-lat'),
+    };
+
+    root.querySelector('.gtr-power').addEventListener('click', () => api.guitarToggle());
+    root.querySelector('.btn-fold').addEventListener('click', e => {
+      g.collapsed = !g.collapsed;
+      root.classList.toggle('collapsed', g.collapsed);
+      e.currentTarget.textContent = g.collapsed ? '▸' : '▾';
+      api.guitarChanged();
+    });
+    gtr.sel.addEventListener('change', () => api.guitarDevice(gtr.sel.value));
+
+    const changed = () => api.guitarChanged();
+    body.appendChild(section(t('gtrInput'), row(
+      createKnob({ label: t('gtrGain'), value: g.gain, min: 0.1, max: 10, def: 1, curve: 'log',
+        format: v => `${v >= 1 ? '+' : ''}${Math.round(20 * Math.log10(v))}dB`,
+        onInput: v => { g.gain = v; changed(); } }).el,
+      createKnob({ label: t('gtrSens'), value: g.sens, def: 0.5, format: fmtPct,
+        onInput: v => { g.sens = v; changed(); } }).el,
+    )));
+
+    const notesRow = row(
+      createKnob({ label: t('gtrRelease'), value: g.release, def: 0.5, format: fmtPct,
+        onInput: v => { g.release = v; changed(); } }).el,
+      createKnob({ label: t('gtrDyn'), value: g.dyn, def: 0.7, format: fmtPct,
+        onInput: v => { g.dyn = v; changed(); } }).el,
+    );
+    const bendTog = el(`<label class="toggle" title="${esc(t('gtrTitleBend'))}">
+      <input type="checkbox" ${g.bend ? 'checked' : ''}><span class="sw"></span>${esc(t('gtrBend'))}</label>`);
+    bendTog.querySelector('input').addEventListener('change', e => { g.bend = e.target.checked; changed(); });
+    notesRow.appendChild(bendTog);
+    notesRow.appendChild(stepper(t('octave'), g.octave, -2, 2, v => { g.octave = v; changed(); }));
+    body.appendChild(section(t('gtrNotes'), notesRow));
+
+    // current state (a language change rebuilds the card while it runs)
+    setGuitarRunning(api.guitarRunning());
+    setGuitarDevices(api.guitarDevices(), state.guitar.deviceId);
+    setGuitarStatus(api.guitarStatusText());
+    drawGuitarMeter(-200);
+    return root;
+  }
+
+  function setGuitarStatus(text, isErr = false) {
+    if (!gtr) return;
+    gtr.lcd.textContent = text;
+    gtr.lcd.classList.toggle('err', isErr);
+  }
+
+  function setGuitarRunning(on) {
+    if (!gtr) return;
+    gtr.led.classList.toggle('on', on);
+    gtr.led.classList.toggle('teal', on);
+    gtr.root.classList.toggle('running', on);
+    if (!on) {
+      gtr.noteEl.textContent = '—';
+      gtr.noteEl.classList.remove('heard', 'playing');
+      gtr.centsEl.classList.remove('heard', 'intune');
+      gtr.centsEl.style.setProperty('--c', '0');
+      gtr.lat.textContent = '';
+      drawGuitarMeter(-200);
+    }
+  }
+
+  // Labels only exist once the input has been allowed; before that the
+  // browser's default input is the only choice.
+  function setGuitarDevices(list, currentId) {
+    if (!gtr) return;
+    const known = list.some(d => d.id === currentId);
+    gtr.sel.innerHTML = `<option value="" ${!known ? 'selected' : ''}>${esc(t('gtrDefaultDevice'))}</option>`
+      + list.map(d => `<option value="${esc(d.id)}" ${d.id === currentId ? 'selected' : ''}>${esc(d.label)}</option>`).join('');
+  }
+
+  function drawGuitarMeter(db) {
+    if (!gtr) return;
+    const c = gtr.meter, g2 = c.getContext('2d');
+    const w = c.width, h = c.height, segs = 12;
+    g2.clearRect(0, 0, w, h);
+    const lit = Math.max(0, Math.min(segs, Math.round((db + 60) / 60 * segs)));
+    const bw = (w - (segs + 1) * 3) / segs;
+    for (let i = 0; i < segs; i++) {
+      g2.fillStyle = i < lit ? (i > segs - 3 ? '#ff5040' : i > segs - 6 ? '#ffb454' : '#5fbf72') : '#2a241d';
+      g2.fillRect(3 + i * (bw + 3), 5, bw, h - 10);
+    }
+  }
+
+  /** Tuner + level, from a tracker meter event and the browser's latencies. */
+  function setGuitarMeter(info, lat) {
+    if (!gtr) return;
+    drawGuitarMeter(info.db);
+    const heard = !Number.isNaN(info.midiF);
+    if (heard) {
+      const nearest = Math.round(info.midiF);
+      const cents = (info.midiF - nearest) * 100;
+      gtr.noteEl.textContent = noteName(nearest);
+      gtr.centsEl.style.setProperty('--c', (clamp(cents, -50, 50) / 50).toFixed(3));
+      gtr.centsEl.classList.toggle('intune', Math.abs(cents) < 5);
+    } else {
+      gtr.noteEl.textContent = info.note >= 0 ? noteName(info.note) : '—';
+      gtr.centsEl.classList.remove('intune');
+    }
+    gtr.noteEl.classList.toggle('heard', heard);
+    gtr.noteEl.classList.toggle('playing', info.note >= 0);
+    gtr.centsEl.classList.toggle('heard', heard);
+    const ms = v => (Number.isNaN(v) ? '?' : String(Math.round(v)));
+    gtr.lat.innerHTML = `IN <b>${ms(lat.input)}</b> · OUT <b>${ms(lat.output)}</b> · TRK <b>${ms(info.latMs)}</b> ms`;
   }
 
   function buildCard(inst) {
@@ -887,6 +1033,7 @@ export function createRack(container, api) {
 
   return {
     rebuild, setStatus, refreshSoloMute,
+    setGuitarStatus, setGuitarRunning, setGuitarDevices, setGuitarMeter,
     refreshSampler(id) {
       const c = cards.get(id);
       if (c && c.drawSampler) c.drawSampler();

@@ -1318,3 +1318,84 @@ select optgroup {
   #viewTabs { padding-top: 0; }
   .vt-btn { min-height: 30px; padding: 4px 8px; font-size: 11px; }
 }
+
+/* ---------------- GUITAR → MIDI section ---------------- */
+.module.guitar {
+  background:
+    linear-gradient(180deg, #ffffff0a, transparent 30%),
+    linear-gradient(180deg, #1f2221, #171a19);
+}
+.module.guitar .gtr-title { margin-right: 4px; }
+.module.guitar .mod-selects { flex: 1 1 180px; }
+.module.guitar select.sel-input { flex: 1 1 160px; min-width: 0; }
+.module.guitar .mod-lcd { flex: 2 1 240px; }
+.module.guitar .mod-body { align-items: center; }
+.gtr-tuner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--lcd-bg);
+  border: 1px solid #000;
+  border-radius: 6px;
+  box-shadow: inset 0 2px 8px #000d, 0 1px 0 #ffffff12;
+  min-width: 250px;
+}
+.gtr-note {
+  font-family: var(--f-brand);
+  font-size: 22px;
+  font-weight: 800;
+  min-width: 64px;
+  text-align: center;
+  color: #6b5a3a;
+  text-shadow: none;
+  transition: color .08s;
+}
+.gtr-note.heard { color: var(--lcd-txt); text-shadow: 0 0 8px #ffc46b66; }
+.gtr-note.playing { color: var(--teal); text-shadow: 0 0 10px #3ad0c488; }
+.gtr-cents {
+  position: relative;
+  width: 110px; height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #5a2a22 0%, #4a3b16 35%, #1f3d2a 47%, #1f3d2a 53%, #4a3b16 65%, #5a2a22 100%);
+  box-shadow: inset 0 1px 3px #000c;
+}
+.gtr-cents::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: -3px; bottom: -3px;
+  width: 1px;
+  background: #ffffff55;
+}
+.gtr-cents i {
+  position: absolute;
+  top: -2px;
+  left: calc(50% + var(--c, 0) * 50%);
+  width: 4px; height: 14px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: #6b5a3a;
+  transition: left .05s linear;
+}
+.gtr-cents.heard i { background: var(--amber); box-shadow: 0 0 6px #ffb45499; }
+.gtr-cents.intune i { background: var(--teal); box-shadow: 0 0 6px #3ad0c499; }
+.gtr-meter {
+  width: 90px; height: 26px;
+  background: #15100a;
+  border: 1px solid #000;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 6px #000c;
+}
+.gtr-lat {
+  color: var(--dim);
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 120px;
+}
+.gtr-lat b { color: var(--lcd-txt); font-weight: 400; }
+.gtr-power .led.on.teal { background: var(--teal); }
+@media (max-width: 780px), (max-height: 520px) {
+  body.m-edit .gtr-tuner { flex-wrap: wrap; min-width: 0; width: 100%; }
+  body.m-edit .module.guitar .mod-selects { flex: 1 1 100%; }
+  body.m-edit .module.guitar select.sel-input { min-height: 40px; font-size: 15px; }
+}
