@@ -219,3 +219,64 @@ test('mute and meters', () => {
   const r = drive(core, B, () => [0, 0]);
   assert.ok(r.outs[0][0].every(v => v === 0));
 });
+
+test('STOP drops the latency tail: a stopped head records nothing', () => {
+  const core = new LooperCore(SR);
+  core.setLatency(0, 500);
+  drive(core, SR, () => [0.1, 0.1], { 0: c => c.toggle(0), [HALF]: c => c.toggle(0) /* close → dub */ });
+  core.stop();                                 // mid-overdub, with a 500-frame tail pending
+  const t = core.tracks[0];
+  assert.equal(t.mode, 'play');
+  assert.equal(t.writing, 'none');
+  drive(core, 40 * B, () => [0.1, 0.1]);       // the synth keeps ringing after STOP
+  assert.ok(t.L.every(v => Math.abs(v) <= 0.2 + 1e-6), `peak ${Math.max(...t.L.map(Math.abs))}`);
+});
+
+test('STOP while the first loop waits for its beat closes it stopped', () => {
+  const core = new LooperCore(SR);
+  const BEAT = QUARTER;
+  core.setSnap(BEAT);
+  drive(core, BEAT + 60 * B, () => [0.5, 0.5], { 0: c => c.toggle(0) });   // in the second half of beat 2
+  core.stop();                                 // rounds up to 2 beats: the close waits for the frames
+  assert.equal(core.running, false);
+  const { events } = drive(core, BEAT, () => [0.5, 0.5]);
+  const t = core.tracks[0];
+  assert.equal(core.length, 2 * BEAT);
+  assert.ok(events.some(e => e.t === 'track' && e.i === 0 && e.mode === 'play'));
+  assert.equal(t.mode, 'play');
+  assert.equal(t.writing, 'none');
+  assert.equal(core.running, false);
+  drive(core, 40 * B, () => [0.5, 0.5]);       // input keeps coming while stopped
+  assert.ok(t.L.every(v => Math.abs(v) <= 1 + 1e-6), `peak ${Math.max(...t.L.map(Math.abs))}`);
+  core.play();
+  const r = drive(core, B, () => [0, 0]);
+  assert.ok(near(r.outs[0][0][3], t.L[3]), 'PLAY then plays the closed loop');
+});
+
+test('a latency longer than the loop still writes every frame', () => {
+  const core = new LooperCore(SR);
+  const LEN = QUARTER;
+  drive(core, LEN + B, () => [0, 0], { 0: c => c.toggle(0), [LEN]: c => { c.toggle(0); c.toggle(0); } });
+  core.setLatency(0, LEN + 3000);              // write head further back than one loop
+  drive(core, LEN, () => [1, 1], { 0: c => c.toggle(1) });   // exactly one cycle: each frame written once
+  const t = core.tracks[1];
+  assert.ok(t.L.every(v => v === 1), `unwritten frames: ${t.L.filter(v => v !== 1).length}`);
+});
+
+test('the undo layer builds itself and survives a partial pass', () => {
+  const core = new LooperCore(SR);
+  drive(core, SR, f => [ramp(f), 0], { 0: c => c.toggle(0), [HALF]: c => { c.toggle(0); c.toggle(0); } });
+  const t = core.tracks[0];
+  const before = Float32Array.from(t.L);
+  core.play();
+  // overdub a third of the loop only, then PLAY
+  drive(core, QUARTER, () => [1, 0], { 0: c => c.toggle(0), [QUARTER - 30 * B]: c => c.toggle(0) });
+  assert.equal(t.mode, 'play');
+  assert.ok(t.undoValid, 'the layer completed within a few blocks of the pass');
+  const layered = Float32Array.from(t.L);
+  assert.ok(near(layered[5], before[5] + 1) && near(layered[HALF - 5], before[HALF - 5]), 'only the written range changed');
+  core.undo(0);
+  assert.ok(t.L.every((v, q) => v === before[q]), 'undo restored the exact pre-pass audio');
+  core.undo(0);
+  assert.ok(t.L.every((v, q) => v === layered[q]), 'undo again redoes');
+});

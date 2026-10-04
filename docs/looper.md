@@ -30,7 +30,9 @@ card, the state, the wiring in `main.js` and the translations are built on.
   ignores them).
 - **MAX LENGTH** (30 s / 1 min / 2 min / 5 min): the first loop closes by
   itself when it reaches it. Memory: a 5-minute stereo loop is 115 MB per
-  track (230 MB with undo). Default 5 min on desktop, 1 min on phones
+  track (230 MB with undo); the first track reserves MAX LENGTH worth when
+  it starts recording and keeps it as its loop (closing copies nothing).
+  Default 5 min on desktop, 1 min on phones
   (`matchMedia('(hover: hover) and (pointer: fine)')` false).
 - **Source**: RACK (every module, dry, without the metronome, the shared
   effects or the looper itself — `engine.dry`), one module (its dry output),
@@ -63,7 +65,7 @@ looper.setMonitor(0..1);                  // input monitoring level (input sourc
 looper.refreshLatency();                  // after the context's latency may have changed
 looper.latency();                         // { input, output } ms, for display
 looper.params                             // the 6 track parameter objects (defaultTrack())
-looper.status, looper.source
+looper.status, looper.source, looper.inputOpen   // inputOpen: an audio input stream is feeding the worklet
 ```
 
 Track modes reported by `meter().tracks[i].mode` / `track` events:
@@ -121,8 +123,7 @@ Rack API additions (implemented in `main.js`, called by the card):
 `looperToggle(i)`, `looperPlay()`, `looperStop()`, `looperClear(i)`,
 `looperClearAll()`, `looperUndo(i)`, `looperTrack(i, params)`,
 `looperSource(value)`, `looperSync(on)`, `looperMax(seconds)`,
-`looperMonitor(v)`, `looperStatusText()`, `looperSources()` (the select
-options), `looperRunning()`.
+`looperMonitor(v)`, `looperSources()` (the select options).
 Rack methods the wiring calls: `setLooperMeter(m, latency)`,
 `setLooperEvents(list)`, `setLooperStatus(text, isErr)`.
 
