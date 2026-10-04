@@ -5,6 +5,27 @@ par trois relecteurs, synthèse, critique de complétude) puis corrigé des
 erreurs relevées par la critique. Le mono reste tel quel ; POLY est un
 second moteur derrière le sélecteur MONO / POLY de la carte GUITARE → MIDI.
 
+## 0. Décision du propriétaire (4 octobre 2026)
+
+**POLY doit fonctionner pour n'importe quel visiteur de la page, sans
+rien configurer.** Conséquences sur ce plan :
+
+- La **banque générique** (modèle physique inharmonique, B par corde et
+  par case, amplitudes des partiels par défaut) est le chemin principal,
+  pas un repli. Elle est validée sur plusieurs guitares et micros :
+  GuitarSet (acoustique, six joueurs), GOAT (5,9 h d'électriques en
+  direct, CC BY 4.0, plusieurs guitares), et la guitare du propriétaire
+  comme une guitare de plus. Les critères d'acceptation des jalons 3 et 6
+  portent sur la banque générique.
+- La **calibration par guitare** (jalon 5) reste au plan comme option
+  « adapter à ma guitare » qui améliore le résultat, jamais comme
+  prérequis ; l'état non calibré n'est pas une alerte.
+- Les seuils sont réglés pour être robustes entre guitares, pas optimaux
+  pour une seule ; le réglage sur la guitare du propriétaire (jalon 6)
+  vérifie qu'il ne régresse pas les autres.
+- Note-off : en l'absence d'avis contraire, la note **suit la décroissance
+  de la corde** (bouton DECAY), comme en MONO.
+
 ## 1. Réponse courte
 
 Un **second moteur polyphonique** à côté du traqueur MONO (intact : 9-36 ms
@@ -29,7 +50,7 @@ les tampons du navigateur. **13 à 16 sessions** pour une bêta POLY crédible.
 
 | # | Quoi | Sert à | Bloque |
 |---|---|---|---|
-| 1 | **Deux décisions** : (a) acceptez-vous une calibration par guitare (1 min rapide, 5 min complète, à refaire quand vous changez de cordes) ? (b) note-off : la note suit la décroissance de la corde (bouton DECAY) ou s'arrête après une durée fixe ? | jalons 3-6 | jalon 3 |
+| 1 | ~~Deux décisions~~ **Tranché (section 0)** : pas de calibration requise, banque générique pour tous ; note-off suit la décroissance (DECAY) sauf avis contraire | — | — |
 | 2 | **Votre rig** : guitare, type de micro (simple/double bobinage, position), interface USB et pilote, Windows 10 ou 11, navigateurs utilisés, iPhone et mode de branchement | écart de domaine, chemin Windows | jalon 4 |
 | 3 | **Relevés sur Chrome/PC** avec la carte GUITARE actuelle : IN / OUT / TRK affichés pendant une note tenue, et une mesure aller-retour « clic → micro » que la page fournira au jalon 2 (les chiffres affichés sous-estiment OUT sur certains Windows) | remplace les chiffres extrapolés | jalon 4 |
 | 4 | **Enregistrements (≈ 12 min)** : 20 doubles-notes (octaves, quintes, tierces), accords ouverts E A D G C Em Am Dm et barrés F Bm B7, chacun gratté lent, moyen, rapide puis arpégé, un accord avec une corde étouffée, un accord avec bend et vibrato sur la chanterelle seule, 5 minutes de jeu libre. WAV 48 kHz / 24 bits mono, entrée directe de l'interface, micro chevalet, tonalité à fond, pics vers −12 dBFS, un fichier par item. **Le jeu chromatique corde par corde n'est plus demandé** : la page de calibration du jalon 5 l'enregistre elle-même | gabarits, seuils, verdict | jalon 6 |
@@ -239,3 +260,106 @@ Notes seules sur chaque corde ; doubles-notes ; accords ouverts lents puis
 rapides ; barrés ; arpèges ; corde étouffée dans un accord ; bend sur une
 corde d'un accord ; hammer-on dans un accord ; repick rapide ; 30 s de jeu
 libre.
+
+
+## 11. Tableau de référence (jalon 1)
+
+Banc figé : `test/takes.json` (24 prises solo + 12 prises comp de GuitarSet,
+règle de sélection déterministe écrite dans le fichier : pour le joueur p et
+le style s, parmi les 6 prises du couple (joueur, style) triées par nom, solo
+= styles (p + k) mod 5 pour k = 0..3 et prise (p + s) mod 6 ; comp = styles
+(2p) mod 5 et (2p + 1) mod 5 et prise (p + s + 3) mod 6 ; 4 solo et 2 comp
+par joueur, chaque style 4-5 fois en solo et 2-3 fois en comp),
+`test/dump-events.mjs` (événements du traqueur en JSON) et `test/score.py`
+(mir_eval). Audio : mix mono du micro magnétique, 44,1 kHz ; référence : les
+six annotations `note_midi` par corde (micro hexaphonique). Durée :
+715 s de solo (2185 notes), 378 s de comp
+(3119 notes). Commandes exactes (`<guitarset>` = dossier GuitarSet) :
+
+```
+node test/dump-events.mjs --guitarset <guitarset> --set solo --out events-mono-solo.json
+node test/dump-events.mjs --guitarset <guitarset> --set comp --out events-mono-comp.json
+python3 test/score.py --guitarset <guitarset> --basic-pitch solo --out events-basic-pitch-solo.json
+python3 test/score.py --guitarset <guitarset> --basic-pitch comp --out events-basic-pitch-comp.json
+python3 test/score.py --guitarset <guitarset> events-mono-solo.json events-mono-comp.json \
+    events-basic-pitch-solo.json events-basic-pitch-comp.json
+```
+
+Appariement : `mir_eval.transcription.match_notes`, un pour un, attaque dans
+la tolérance, hauteur ±50 cents ; « avec fins » = fin de note à 20 % de la
+durée de référence (≥ 50 ms). Les lignes rappel par taille d'accord,
+fantômes, coincées, octaves, notes avant le pincement et latences utilisent
+l'appariement ±50 ms sans fins. Taille d'accord = notes de référence dont
+l'attaque tombe dans les 50 ms de la première du groupe. Chiffres cumulés sur
+les prises (sommes des notes appariées / émises / de référence), tels que
+produits par le script.
+
+| Mesure                                                                            | mono (solo)                       | mono (comp)                       | basic-pitch (solo)              | basic-pitch (comp)              |
+|-----------------------------------------------------------------------------------|-----------------------------------|-----------------------------------|---------------------------------|---------------------------------|
+| Prises / notes de référence / notes émises                                        | 24 / 2185 / 2406                  | 12 / 3119 / 955                   | 24 / 2185 / 2377                | 12 / 3119 / 3278                |
+| F1 ±50 ms                                                                         | 71.8 %                            | 9.3 %                             | 81.4 %                          | 72.9 %                          |
+| F1 ±20 ms                                                                         | 65.4 %                            | 4.6 %                             | 63.6 %                          | 59.2 %                          |
+| F1 ±50 ms avec fins                                                               | 53.8 %                            | 2.7 %                             | 63.2 %                          | 44.3 %                          |
+| F1 ±20 ms avec fins                                                               | 49.3 %                            | 1.6 %                             | 50.2 %                          | 37.1 %                          |
+| Précision ±50 ms                                                                  | 68.5 %                            | 19.9 %                            | 78.1 %                          | 71.1 %                          |
+| Rappel ±50 ms                                                                     | 75.5 %                            | 6.1 %                             | 84.9 %                          | 74.7 %                          |
+| Précision ±20 ms                                                                  | 62.4 %                            | 9.8 %                             | 61.0 %                          | 57.8 %                          |
+| Rappel ±20 ms                                                                     | 68.7 %                            | 3.0 %                             | 66.4 %                          | 60.7 %                          |
+| Rappel accords de 1 note (n réf.)                                                 | 79.2 % (1991)                     | 24.3 % (461)                      | 85.9 % (1991)                   | 67.9 % (461)                    |
+| Rappel accords de 2 notes (n réf.)                                                | 38.2 % (170)                      | 7.3 % (562)                       | 71.8 % (170)                    | 72.2 % (562)                    |
+| Rappel accords de 3 notes (n réf.)                                                | 33.3 % (24)                       | 3.4 % (783)                       | 95.8 % (24)                     | 75.9 % (783)                    |
+| Rappel accords de 4 notes (n réf.)                                                | n/a (0)                           | 0.8 % (956)                       | n/a (0)                         | 77.6 % (956)                    |
+| Rappel accords de 5-6 notes (n réf.)                                              | n/a (0)                           | 0.6 % (357)                       | n/a (0)                         | 77.3 % (357)                    |
+| Fantômes (< 30 ms, non appariées) / émises                                        | 199 (8.3 %)                       | 138 (14.5 %)                      | 0 (0.0 %)                       | 0 (0.0 %)                       |
+| Notes coincées (> 2× réf. + 0,5 s) / appariées                                    | 8 (0.5 %)                         | 1 (0.5 %)                         | 2 (0.1 %)                       | 3 (0.1 %)                       |
+| Erreurs d'octave / émises                                                         | 36 (1.5 %)                        | 153 (16.0 %)                      | 80 (3.4 %)                      | 384 (11.7 %)                    |
+| Notes avant le pincement (> 20 ms) / appariées                                    | 22 (1.3 %)                        | 7 (3.7 %)                         | 349 (18.8 %)                    | 372 (16.0 %)                    |
+| Latence brute vs annotation : médiane (p25 / p75 / p90)                           | +6 ms (+3 ms / +10 ms / +16 ms)   | +19 ms (+9 ms / +31 ms / +41 ms)  | -13 ms (-18 ms / -8 ms / -1 ms) | -10 ms (-17 ms / -2 ms / +6 ms) |
+| Retard annotation GuitarSet vs attaque énergie (1449 notes) : médiane (p25 / p75) | +9 ms (+7 ms / +12 ms)            | +9 ms (+7 ms / +12 ms)            | +9 ms (+7 ms / +12 ms)          | +9 ms (+7 ms / +12 ms)          |
+| Latence corrigée (brute + retard) : médiane (p25 / p75 / p90)                     | +16 ms (+13 ms / +20 ms / +26 ms) | +28 ms (+18 ms / +40 ms / +50 ms) | -3 ms (-9 ms / +2 ms / +9 ms)   | -0 ms (-7 ms / +8 ms / +16 ms)  |
+
+Répartition des notes de référence par taille d'accord sur les 12 prises
+comp : 1 note 15 % (461), 2 notes 18 % (562), 3 notes 25 % (783), 4 notes
+31 % (956), 5-6 notes 11 % (357, dont 72 à 6 notes) — plus polyphonique que
+les 34 / 22 / 23 / 16 / 6 % cités en section 4, qui portaient sur un autre
+regroupement ; c'est cette répartition qui fait foi pour le banc. En solo,
+91 % des notes sont seules, 8 % à deux (doubles-notes) et 1 % à trois.
+
+Notes de lecture :
+
+- **Mono** : F1 71,8 % en solo, 9,3 % en comp. Les 72 % / 84 % de
+  `docs/guitar-to-midi.md` (précision / rappel) venaient d'une autre liste de
+  prises et d'une fenêtre d'appariement asymétrique −60/+150 ms ; avec la
+  fenêtre symétrique ±50 ms de mir_eval on lit 68,5 % / 75,5 %. Fantômes 8 %
+  en solo, 14,5 % en comp ; erreurs d'octave 16 % des notes émises en comp
+  (cordes qui sonnent ensemble) ; 1,3 % des notes appariées partent plus de
+  20 ms avant l'attaque annotée (à relire avec le retard d'annotation
+  ci-dessous : elles partent en réalité ~10 ms *après* le pincement).
+- **Retard d'annotation GuitarSet** : 1449 attaques isolées des 24 prises
+  solo (aucune autre attaque annotée dans [−150, +50] ms, montée ≥ 10 dB),
+  enveloppe RMS 2 ms / pas 0,5 ms, attaque = premier passage à 20 % de la
+  montée (plancher → crête) : l'annotation est **en retard de 9 ms
+  (p25 7 / p75 12)** sur l'attaque d'énergie ; 11 ms avec un seuil à 10 %,
+  9 ms à 50 % (`--lag-threshold`). Les ≈ 12 ms estimés sur 52 attaques
+  (section 4) sont donc revalidés à 9-11 ms. Sur les seules prises comp la
+  mesure ne retient que 317 attaques et donne +22 ms (la corde annotée
+  n'est pas toujours la première grattée) : elle n'est pas utilisée, la
+  colonne comp reprend le retard mesuré en solo.
+- **Latence corrigée du mono** : médiane **16 ms** après le pincement en
+  solo (p90 26 ms), 28 ms en comp — cohérent avec les 9-36 ms physiques du
+  traqueur plus la granularité de bloc (128 échantillons, 2,9 ms).
+- **Basic Pitch** (Spotify, modèle ICASSP 2022 en ONNX, CPU, paramètres par
+  défaut dont durée minimale de note 127,7 ms, `pip3 install --user
+  basic-pitch` déjà présent ; 18-20 s par jeu de prises sur 4 cœurs, deux
+  exécutions identiques) : hors ligne et non causal, c'est le **plafond de
+  référence**, pas un concurrent. F1 81,4 % en solo et **72,9 % en comp**,
+  rappel 72-78 % pour les accords de 2 à 6 notes, précision 71 % ; ses
+  attaques tombent 13 ms *avant* l'annotation (3 ms avant le pincement
+  réel), d'où ses 16-19 % de « notes avant le pincement » ; zéro fantôme par
+  construction (durée minimale) ; 3,4 % / 11,7 % d'erreurs d'octave. Les
+  cibles du jalon 3 (comp F1 ≥ 0,55, solo ≥ 0,72, 2-3 notes ≥ 90 %) se
+  lisent contre ces deux lignes : un moteur causal à fenêtre de 20-40 ms
+  qui atteint 0,55-0,65 en comp est à 75-90 % du plafond hors ligne.
+- Prises hexaphoniques : l'archive n'était pas disponible pendant cette
+  session (téléchargement incomplet) ; la latence « référencée
+  hexaphonique » de la section 4 reste à produire au jalon 1 bis.
