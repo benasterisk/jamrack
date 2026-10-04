@@ -62,13 +62,15 @@ export const TUNING = {
   LOWCONF_MAX: 12,      // frames (~32 ms) without a period = string muted
   SOFT_AGREE: 4,        // frames of stable pitch for an onset-less (swell) note
   ONSET_AGREE: 3,       // frames agreeing on the pitch before a plucked note starts
-  LEGATO_AGREE: 4,      // ... before a hammer-on / pull-off / slide retriggers (~11 ms)
+  LEGATO_AGREE: 4,      // ... frames out of the last LEGATO_WINDOW voting for the new note
+  LEGATO_WINDOW: 6,     //     before a hammer-on / pull-off / slide retriggers (~11-16 ms);
+                        //     a vote tolerates a flapping frame when two strings ring
   OCTAVE_AGREE: 6,      // ... for an octave change without a pluck (rare: usually two strings)
   GRID: 0.35,           // semitones: a note must sit this close to the grid to be named
   SAME_NOTE_HOLDOFF: 19,// frames (~50 ms): a note cannot be re-picked right after it started
   EARLY_FIX: 22,        // frames (~60 ms): a different stable pitch this soon after a pluck
                         // is a wrong note to correct, not a bend to follow
-  HARMONIC_GUARD: 1,    // 1: check 1.5x/2x/3x the period for a clearly deeper dip
+  HARMONIC_GUARD: 0,    // 1: also check 1.5x/3x the period (no gain on real guitar; 2x only)
 };
 const T = TUNING;
 
@@ -346,17 +348,21 @@ export class GuitarTracker {
         const octave = Math.abs(dev) >= 11.5 && Math.abs(dev) <= 12.5;
         if (m !== this.note && onGrid && (jump || early || !p.bend || Math.abs(dev) > T.BEND_RETRIG)) {
           // Hammer-on, pull-off or slide: a new note without a new pluck.
-          // Several frames must agree so a transition cannot leave ghost notes.
-          this.legAgree = (m === this.legCand) ? this.legAgree + 1 : 1;
-          this.legCand = m;
+          // Enough recent frames must vote for the new note so a transition
+          // cannot leave ghost notes (the vote tolerates a flapping frame).
           const need = octave ? T.OCTAVE_AGREE : T.LEGATO_AGREE;
-          if (this.legAgree >= need) {
+          const span = octave ? T.OCTAVE_AGREE + 2 : T.LEGATO_WINDOW;
+          let votes = 1;
+          for (let i = 1; i < span; i++) {
+            const past = this.midiHist[(k - i) & 7];
+            if (!Number.isNaN(past) && Math.round(past) === m && Math.abs(past - m) <= T.GRID) votes++;
+          }
+          if (votes >= need) {
             this.lastLatMs = need * this.frameMs;
             this._noteOn(out, m, Math.max(this._vel(rmsDb), this.noteVel * 0.6), rmsDb, early ? 'fix' : 'legato');
           }
-        } else {
-          this.legAgree = 0;
-          if (p.bend) this._bend(out, early ? clamp(dev, -0.5, 0.5) : dev);
+        } else if (p.bend) {
+          this._bend(out, early ? clamp(dev, -0.5, 0.5) : dev);
         }
       } else if (++this.lowConf >= T.LOWCONF_MAX) {
         this._noteOff(out);   // no period left: the string was muted
