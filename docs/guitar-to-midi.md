@@ -82,6 +82,35 @@ research-grade problem (neural models like Spotify's Basic Pitch need
 Tuning aid: `node test/trace.mjs repick|run|hammer [fromMs] [toMs]` prints a
 frame-by-frame trace of levels, confidence and decisions.
 
+## Measured on real guitar (GuitarSet)
+
+`node test/guitarset-eval.mjs <dir> 24 solo` runs the tracker on 24
+GuitarSet solo takes (mono magnetic pickup, hexaphonic ground truth,
+12 minutes of audio, 2 277 annotated notes) and matches emitted notes to the
+annotations (same pitch, onset within −60/+150 ms). `test/trace.mjs` and the
+`why` field of every note-on (`pluck` / `legato` / `swell` / `fix`) are the
+tuning aids. Numbers after the tuning round of this branch:
+
+| | Before tuning | Tuned (default) |
+|---|---|---|
+| Precision (emitted notes that are right) | 48.5 % | ~72 % |
+| of which octave errors | 4.3 % | 2.9 % |
+| Recall on isolated notes | 91.3 % | ~84 % |
+| Recall on notes overlapped by a ringing string | 48.7 % | ~45 % |
+| Onset → note-on vs hex-pickup annotations, median | 3 ms | 6 ms |
+
+What the tuning changed and why (ablation on the same takes): the legato
+retrigger is the one real trade-off (2 frames: 91 % recall / 61 %
+precision; 4-of-6 vote: 84 % / 72 %); the early fix after a pluck gives
++4 points of recall for free; the semitone grid +3 points of precision;
+the re-pick hold-off and the 6-frame octave confirmation are small gains;
+the extended 1.5×/3× harmonic guard brought nothing on real signal and is
+off. The remaining false notes come from strings ringing together — the
+polyphonic problem, which no monophonic tuning solves.
+
+On the chord-comping takes (`comp`) the monophonic tracker scores 29 %
+precision and 7 % recall: that is the baseline a POLY engine must beat.
+
 ## Requirement: a MONO / POLY selector
 
 Polyphony will not replace the monophonic tracker: the card gets a
