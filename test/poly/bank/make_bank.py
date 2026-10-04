@@ -2,8 +2,13 @@
 """Builds a template bank for the POLY decomposer (analyze.py via
 test/poly/bank/analyze_bank.py) from the measurements of extract.py.
 
-  python3 test/poly/bank/make_bank.py --measure <dir>/measurements.npz --kind avg|fit|synth --out bank-<kind>.npz
+  python3 test/poly/bank/make_bank.py --measure <dir>/measurements.npz --kind avg|fit|bfit|synth --out bank-<kind>.npz
                                       [--phases att,dec] [--min-notes 8] [--floor-db 40] [--no-fill]
+  python3 test/poly/bank/make_bank.py --stats test/poly/bank/profile-dev.json --kind fit|bfit --out bank-<kind>.npz
+
+--stats (the stats.json of extract.py, committed as profile-dev.json: per-string
+profiles prof_att / prof_dec and the B law) is enough for the parametric kinds;
+--measure (60 MB, scratch only) is needed for avg.
 
 Three kinds, all 6 strings x 20 frets, one column per (string, fret, phase)
 plus the two noise templates of templates.py, unit-L2 columns, one matrix
@@ -122,7 +127,8 @@ def build(kind, M, stats, phases, min_notes, floor_db, fill, slope1):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--measure', help='measurements.npz of extract.py (stats.json next to it); not needed for synth')
+    ap.add_argument('--measure', help='measurements.npz of extract.py (stats.json next to it); needed for avg')
+    ap.add_argument('--stats', help='stats.json of extract.py: enough for fit / bfit')
     ap.add_argument('--kind', required=True, choices=['avg', 'fit', 'bfit', 'synth'])
     ap.add_argument('--out', required=True)
     ap.add_argument('--phases', default='att,dec', help='template phases (default att,dec; synth has one phase)')
@@ -133,12 +139,16 @@ def main():
     a = ap.parse_args()
     phases = ['att'] if a.kind in ('synth', 'bfit') else a.phases.split(',')
     M = stats = None
-    if a.kind != 'synth':
+    if a.kind == 'avg' or (a.kind != 'synth' and not a.stats):
         M = np.load(a.measure)
         stats = json.load(open(os.path.join(os.path.dirname(a.measure), 'stats.json')))
+    elif a.kind != 'synth':
+        stats = json.load(open(a.stats))
+        M = {'prof_att': np.array(stats['prof_att']), 'prof_dec': np.array(stats['prof_dec'])}
     out, meta = build(a.kind, M, stats, phases, a.min_notes, a.floor_db, not a.no_fill, a.slope1)
     out['settings'] = np.array(json.dumps({'kind': a.kind, 'phases': phases, 'min_notes': a.min_notes, 'floor_db': a.floor_db,
-                                           'fill': not a.no_fill, 'slope1': a.slope1, 'measure': a.measure and os.path.abspath(a.measure)}))
+                                           'fill': not a.no_fill, 'slope1': a.slope1, 'measure': a.measure and os.path.abspath(a.measure),
+                                           'stats': a.stats and os.path.abspath(a.stats)}))
     np.savez_compressed(a.out, **out)
     K = out['W_medium'].shape[1]
     nd = sum(m['origin'] == 'data' for m in meta)
