@@ -60,7 +60,7 @@ export class Instrument {
     }
     this.muteGain.connect(this.out);
 
-    this.out.connect(engine.master);
+    this.out.connect(engine.dry);
     this.revSend = ctx.createGain();
     this.delSend = ctx.createGain();
     this.out.connect(this.revSend);

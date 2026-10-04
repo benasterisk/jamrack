@@ -1,7 +1,7 @@
 // Global audio engine: context, master bus, shared reverb and delay.
 //
 // Routing:
-//   instance.out ─┬─→ master ─→ limiter ─→ destination
+//   instance.out ─┬─→ dry ─→ master ─→ limiter ─→ destination
 //                 ├─→ (send) reverbIn ─→ convolver ─→ reverbWet ─→ master
 //                 └─→ (send) delayIn ─→ delay(+feedback+tone) ─→ delayWet ─→ master
 
@@ -18,6 +18,10 @@ export class Engine {
     this.ctx = new AC({ latencyHint: desktop ? 0 : 'interactive' });
 
     this.master = this.ctx.createGain();
+    // Instruments sum here (dry, before the shared effects) so the LOOPER can
+    // record "the rack" without the metronome, the effect returns or itself.
+    this.dry = this.ctx.createGain();
+    this.dry.connect(this.master);
     // Instruments apply their own make-up gain (sampled banks are mastered
     // very quiet), so this limiter catches the peaks when voices stack up.
     this.limiter = this.ctx.createDynamicsCompressor();
