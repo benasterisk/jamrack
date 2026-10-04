@@ -428,3 +428,57 @@ de sortie : sur prises nouvelles, doubles ≥ 70 % et triades ≥ 60 % avec
 précision ≥ 80 % → jalon 3 avec périmètre « doubles-notes et triades
 fiables, accords complets partiels » ; sinon POLY est annoncé comme
 « doubles-notes et triades » et le plan est revu.
+
+
+## 13. Résultat de la session d'amélioration (5 octobre, vérifié)
+
+Séparation propre par joueur (DEV = joueurs 00 et 03 ; TEST = 01, 02, 04,
+05 ; mélanges construits à l'intérieur de chaque moitié), seuils réglés sur
+DEV seulement, tout reproduit à l'identique par un vérificateur adversarial
+qui a aussi rejoué le réglage et testé 30 prises nouvelles. Configuration
+retenue (`test/poly/params-merged.json`, mode d'emploi `test/poly/README.md`) :
+banque **générique dérivée des données** (profil de partiels par corde et
+loi d'inharmonicité ajustés sur les cordes hexaphoniques des joueurs DEV,
+puis re-rendus paramétriquement, donc sans dépendance à une guitare),
+décomposeur à 60 gabarits actifs, 15 itérations, λ 400, règle de note par
+hop. Coût : 1,17 ms par hop en numpy (estimation JS non mesurée).
+
+**Sur prises jamais vues** (joueurs TEST ou nouvelles prises) :
+
+| Jeu | POLY F1 | Précision | Doubles / triades retrouvées | Mono F1 |
+|---|---|---|---|---|
+| Lignes solo | 81-82 % | 78-83 % | — | 73-75 % |
+| Deux lignes superposées | 77-79 % | 77-81 % | 71-72 % / — | 43-47 % |
+| Trois lignes superposées | 71-73 % | 74-75 % | 63-69 % / 56 % | 31 % |
+| Deux cordes d'accords réels | 66 % | 84-89 % | 55-56 % / — | 40 % |
+| Trois cordes d'accords réels | 60 % | 81-85 % | 50-51 % / 48-64 % | 25-26 % |
+| Accords complets | 49-54 % | 72-78 % | 39-45 % / 45-49 % (4 notes : 27-39 %) | 5-11 % |
+
+Notes fantômes ≤ 1 %, latence médiane corrigée +23 ms (solo) à +30 ms
+(accords), qui inclut 16-21 ms de délai de décision après l'attaque.
+
+**La banque dérivée des données généralise** : sur quatre guitares
+électriques d'un autre jeu (IDMT-SMT-Guitar, évaluation seule), F1 de 57 à
+66 % contre la banque synthétique, +10 à +20 points sur les traits de gamme,
+sans perte sur GuitarSet. Elle est donc la banque « pour tout visiteur ».
+
+**Porte de la section 12, sur prises nouvelles :** doubles ≥ 70 % → **55,8 %
+ÉCHEC** (71 % sur lignes superposées, 56 % sur accords grattés, 39 % dans
+les accords complets) ; triades ≥ 60 % → **53,5 % ÉCHEC** ; précision
+≥ 80 % → **81,8 % RÉUSSI**. Le vérificateur obtient le même verdict sur ses
+30 prises (51,5 / 56,2 / 85,5 %).
+
+**Diagnostic confirmé :** le décomposeur n'est plus la limite (99 % des
+notes de doubles-notes et 88 % des notes de triades reçoivent désormais une
+activation suffisante) ; le rappel se perd dans la **règle de note**, réglée
+pour la précision. La règle « par attaque » essayée n'a pas fait mieux que
+la règle par hop sur cet objectif. Le prochain levier est donc une règle de
+note orientée rappel sur les accords (décision intégrée, seuils par taille
+d'accord, prise en compte des cordes), avec la précision comme contrainte.
+
+**Décision selon la règle de la section 12 :** pas de jalon 3 sous le
+périmètre « doubles-notes et triades fiables ». Ce que POLY livre
+honnêtement aujourd'hui : notes seules aussi bien ou mieux que MONO avec
+presque aucune note fantôme ; deux lignes superposées à 79 % ; accords
+grattés avec la moitié des notes à 85 % de précision. Le périmètre et la
+suite sont à décider avec le propriétaire (section 14 à écrire).
