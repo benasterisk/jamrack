@@ -79,13 +79,14 @@ aux changements de session. Détails : `docs/local-setup.md`.
   dans `docs/poly-implementation.md`** : moteur POLY JS dans
   `js/audio/guitar/poly/` (profil mesuré, FFT, rééchantillonneur identique à
   scipy, banque fitatt rendue dans le navigateur, β-NMF, règle de notes,
-  `PolyTracker` dans `engine.js`). Équivalence prouvée : sur les 36 prises
-  solo + comp de `test/takes.json`, le décomposeur dense donne **3868 notes
-  sur 3868 identiques** au prototype Python (onsets, fins, vélocités, mêmes
-  scores). Le dense coûte 2,6 ms par hop de 2,67 ms dans le worklet de
+  `PolyTracker` dans `engine.js`). Équivalence prouvée sur les **six jeux** du banc
+  (solo, comp, mix2, mix3, hex2, hex3 ; 13 624 notes) : le décomposeur dense
+  donne **13 624 notes sur 13 624 identiques** au prototype Python (onsets,
+  fins, vélocités, mêmes scores) ; la porte §12 reste non franchie, comme
+  pour le prototype (doubles 57,9 %, triades 45,2 %, précision 78,2 %). Le dense coûte 2,6 ms par hop de 2,67 ms dans le worklet de
   Chrome : l'application utilise la banque **clairsemée τ = 1e-4**
-  (`DECOMPOSER.sparse`, 1,5 ms/hop, 8 notes sur 3868 décalées d'un hop,
-  1 manquante, scores inchangés). `state.guitar.mode` ('mono' par défaut |
+  (`DECOMPOSER.sparse`, 1,5 ms/hop ; sur 13 624 notes : 31 décalées d'un hop,
+  2 manquantes, 1 en trop, scores identiques à ±0,1 pt). `state.guitar.mode` ('mono' par défaut |
   'poly'), sélecteur MONO / POLY β sur la carte, worklet qui bascule de
   moteur (banque rendue sur le fil principal), CPU et nombre de voix
   affichés, manuel et i18n 12 langues. Outils : `test/poly-dump-events.mjs`

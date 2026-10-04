@@ -84,16 +84,40 @@ Briques (vérifiées contre numpy/scipy, 5 octobre 2026) :
   groupe 0,42 ms dans les deux cas (le noyau vit sur la grille suréchantillonnée) ;
 - FFT : égale à une DFT directe à 10⁻⁹.
 
-Événements, décomposeur **dense** (arithmétique du prototype) :
+Événements sur les **six jeux** du banc (mixes construits par
+`test/poly/make_mixes.py` dans un dossier de travail, `--mixdir`), 13 624 notes :
 
-| set | prises | notes Python | notes JS | onsets identiques | fins ≠ | vélocités ≠ | manquantes | en trop |
-|---|---|---|---|---|---|---|---|---|
-| solo | 24 | 2283 | 2283 | **2283 (100 %)** | 0 | 0 | 0 | 0 |
-| comp | 12 | 1585 | 1585 | **1585 (100 %)** | 0 | 0 | 0 | 0 |
+| set | prises | notes Python | JS dense (arithmétique exacte) | JS clairsemé τ = 1e-4 (livré) |
+|---|---|---|---|---|
+| solo | 24 | 2283 | **2283 identiques** | 2281 identiques, 2 à ±1 hop |
+| comp | 12 | 1585 | **1585 identiques** | 1578 identiques, 6 à ±1 hop, 1 manquante |
+| mix2 | 24 | 3418 | **3418 identiques** | 3409 identiques, 9 à ±1 hop |
+| mix3 | 12 | 2134 | **2134 identiques** | 2130 identiques, 3 à ±1 hop, 1 manquante, 1 en trop |
+| hex2 | 36 | 2332 | **2332 identiques** | 2325 identiques, 7 à ±1 hop |
+| hex3 | 24 | 1872 | **1872 identiques** | 1868 identiques, 4 à ±1 hop |
 
-Score mir_eval (F1 ±50 ms / précision / rappel / fantômes / octaves) : solo
-Python 80,8 / 79,1 / 82,7 / 0,3 % / 0,1 %, comp 47,2 / 70,1 / 35,6 / 1,0 % /
-4,7 % ; JS dense **identique** sur les deux sets.
+« Identique » = même note, même onset, même fin, même vélocité. Le moteur
+dense reproduit donc le prototype à la note près sur l'ensemble du banc ; le
+clairsemé livré en diffère sur 2 notes manquantes et 1 en trop sur 13 624,
+plus 31 onsets décalés d'un hop (2,67 ms) et quelques vélocités à < 10⁻³.
+
+Scores mir_eval du moteur **livré** (`test/poly/gate.py` sur `score.py --json`,
+tous les joueurs ; latence corrigée du retard d'annotation +9,4 ms) :
+
+| set | F1 ±50 | F1 ±20 | P | R | rappel 1 note | 2 notes | 3 notes | 4 notes | fantômes | octave | latence médiane (p25/p75/p90) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| solo | 80,8 | 67,6 | 79,1 | 82,7 | 85,0 | 55,3 | 83,3 | – | 0,3 % | 0,1 % | +23 (20/27/33) ms |
+| comp | 47,2 | 21,9 | 70,1 | 35,6 | 40,6 | 42,7 | 42,0 | 29,9 | 1,0 % | 4,7 % | +30 (25/37/45) |
+| mix2 | 76,4 | 57,3 | 77,4 | 75,3 | 79,0 | 69,1 | 52,8 | – | 0,3 % | 0,5 % | +25 (22/29/35) |
+| mix3 | 71,2 | 49,4 | 75,1 | 67,8 | 73,0 | 65,1 | 50,8 | 45,8 | 0,4 % | 1,1 % | +26 (23/30/36) |
+| hex2 | 68,5 | 40,5 | 84,8 | 57,4 | 58,2 | 56,6 | – | – | 0,4 % | 0,8 % | +27 (23/34/41) |
+| hex3 | 61,2 | 30,6 | 81,6 | 49,0 | 45,2 | 52,3 | 46,3 | – | 0,6 % | 1,9 % | +29 (24/36/43) |
+
+Les colonnes Python sont identiques à ±0,1 point. La porte de la section 12
+du plan (doubles ≥ 70 %, triades ≥ 60 %, précision ≥ 80 % sur les jeux
+groupés) reste **non franchie** par le moteur JS comme par le prototype
+(57,9 % / 45,2 % / 78,2 %) : c'est le périmètre « au mieux » annoncé en §14,
+et la raison pour laquelle POLY est une bêta derrière MONO.
 
 ## 3. Coût par hop et décomposeur clairsemé
 
@@ -105,9 +129,9 @@ imprime le coût par prise ; numpy mono-fil mesuré par `merge.py time`) :
 | décomposeur | ms/hop NMF (Node, machine au repos) | ms/hop dans le worklet Chrome (48 kHz, repos) | équivalence sur les 3868 notes solo + comp |
 |---|---|---|---|
 | Python numpy (référence) | 0,95-1,05 | — | — |
-| JS dense | 1,69-1,88 | **2,60** (hop complet) | 3868 identiques |
-| JS clairsemé τ = 1e-5 (645 bins/colonne) | 1,25 | 2,29 | 3867 identiques, 1 à ±1 hop, 1 fin ≠ |
-| JS clairsemé τ = 1e-4 (417 bins/colonne) | 0,91 | **1,52** | 3859 identiques, 8 à ±1 hop, 1 manquante, 40 vélocités ≠ (< 1e-3) ; F1 / P / R inchangés |
+| JS dense | 1,69-1,88 | **2,60** (hop complet) | 13 624 / 13 624 identiques (six jeux) |
+| JS clairsemé τ = 1e-5 (645 bins/colonne) | 1,25 | 2,29 | 3867 / 3868 identiques (solo + comp), 1 à ±1 hop |
+| JS clairsemé τ = 1e-4 (417 bins/colonne) | 0,91 (0,96 sur les 24 solo) | **1,52** | 13 591 identiques, 31 à ±1 hop, 2 manquantes, 1 en trop ; scores identiques à ±0,1 pt |
 | JS clairsemé τ = 1e-3 (248 bins/colonne) | 0,63 | — | non retenu : dérive des activations jusqu'à 24 % |
 
 **Réglage retenu pour l'application : clairsemé τ = 1e-4** (`DECOMPOSER.sparse`
