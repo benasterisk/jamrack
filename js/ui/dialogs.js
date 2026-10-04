@@ -193,6 +193,8 @@ export function setupDialogs(api) {
       <p>${t('helpMultiText')}</p>
       <h3>${esc(t('helpMasterTitle'))}</h3>
       <p>${t('helpMasterText')}</p>
+      <h3>${esc(t('helpLooperTitle'))}</h3>
+      <p>${t('helpLooperText')}</p>
       <h3>${esc(t('helpRecTitle'))}</h3>
       <p>${t('helpRecText')}</p>
       <h3>${esc(t('helpSaveTitle'))}</h3>
