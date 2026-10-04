@@ -37,8 +37,9 @@ export const POLY_DEFAULTS = {
   transpose: 0,       // semitones added to the detected note
 };
 
-/** Decomposer settings (params-merged.json). Exported mutable for ablations. */
-export const DECOMPOSER = { active: 60, iter: 15, lambda: 400, initSal: 0 };
+/** Decomposer settings (params-merged.json). Exported mutable for ablations;
+ *  `sparse` = 0 keeps the prototype's dense arithmetic (see nmf.js). */
+export const DECOMPOSER = { active: 60, iter: 15, lambda: 400, initSal: 0, sparse: 0 };
 
 const FLUX_LAG = 3;
 const FLUX_LO = 4, FLUX_HI = 427;        // bins: 47 Hz .. 5 kHz
