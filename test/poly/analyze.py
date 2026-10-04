@@ -28,7 +28,7 @@ Octave-guard feature: for every pitch and hop, the ratio of the energy of
 the odd partials 1, 3, 5 to the even partials 2, 4, 6 (max magnitude within
 +-1 bin of each), from the same window's spectrum.
 
-Cache (npz): P_<win> (T x 44), noise_<win> (T x 2), odd_<win> (T x 44),
+Cache (npz): P_<win> (T x 44), noise_<win> (T x 2), odd_<win> and low_<win> (T x 44),
 level (T), flux (T), hop_s, midi (44), plus the NMF time per hop.
 """
 import argparse
@@ -49,6 +49,7 @@ N_ITER = 6
 ACTIVE_MAX = 40
 LAMBDA = 0.02        # L1 penalty (see docstring of nmf_run)
 H_FLOOR = 1e-6       # templates below this leave the active set
+INIT_SAL = 0.0       # a template entering the active set starts at INIT_SAL x its salience (0: tiny floor)
 EPS = 1e-9
 FLUX_LAG = 3
 FLUX_LO, FLUX_HI = 4, 427      # bins: 47 Hz .. 5 kHz
@@ -76,16 +77,43 @@ def spectra(x, win_name, chunk=2048):
     return out
 
 
-def odd_even(V, midis):
-    """(T x len(midis)) ratio odd/even partial energy; max over +-1 bin."""
+def partial_features(V, midis):
+    """Per hop and pitch, from the magnitude spectrum (max over +-1 bin of
+    each partial): odd = (p1 + p3 + p5) / (p2 + p4 + p6), the sub-octave
+    guard; low = (p1 + p2) / (p3 + p4 + p5 + p6), the "fundamental present"
+    guard against sub-harmonic ghosts (a template 12, 19, 24 or 28 semitones
+    under a real note explains it with its partials 2-5 only)."""
     f0 = T.midi_to_hz(midis)
     Vmax = np.maximum(np.maximum(V[:, :-2], V[:, 1:-1]), V[:, 2:])   # Vmax[:, b] = max(V[b..b+2]) -> centred on b+1
     def at(j):
         b = np.clip(np.round(j * f0 / T.BIN_HZ).astype(int) - 1, 0, Vmax.shape[1] - 1)
         return Vmax[:, b]
-    odd = at(1) + at(3) + at(5)
-    even = at(2) + at(4) + at(6)
-    return (odd / (even + EPS)).astype(np.float32)
+    p = [at(j) for j in range(1, 7)]
+    odd = (p[0] + p[2] + p[4]) / (p[1] + p[3] + p[5] + EPS)
+    low = (p[0] + p[1]) / (p[2] + p[3] + p[4] + p[5] + EPS)
+    return odd.astype(np.float32), low.astype(np.float32)
+
+
+def odd_even(V, midis):
+    return partial_features(V, midis)[0]
+
+
+def refresh_features(args):
+    """Recomputes the spectrum-only features of a cached take (no NMF)."""
+    import soundfile as sf
+    take, wav, cache = args
+    dst = os.path.join(cache, take + '.npz')
+    z = dict(np.load(dst))
+    x, sr = sf.read(wav, dtype='float64', always_2d=True)
+    x = x[:, 0]
+    if sr != T.SR:
+        g = np.gcd(sr, T.SR)
+        x = resample_poly(x, T.SR // g, sr // g)
+    for win in T.WINDOWS:
+        V = spectra(x, win)
+        z['odd_' + win], z['low_' + win] = partial_features(V, PITCHES)
+    np.savez(dst, **z)
+    return take, 'features refreshed'
 
 
 def nmf_run(V, W, meta):
@@ -117,7 +145,7 @@ def nmf_run(V, W, meta):
         act = np.union1d(act, noise)
         Wa = W64[:, act]
         Wat = Wt[act]
-        ha = np.maximum(h[act], 1e-4 * max(v.max(), 1e-6))
+        ha = np.maximum(h[act], max(INIT_SAL, 1e-4) * sal[act] if INIT_SAL > 0 else 1e-4 * max(v.max(), 1e-6))
         for _ in range(N_ITER):
             y = Wa @ ha + EPS
             num = Wat @ (v * y ** (BETA - 2))
@@ -154,7 +182,7 @@ def analyze_take(wav_path):
             P[:, j] = H[:, midi_of == m].sum(axis=1)
         out['P_' + win] = P
         out['noise_' + win] = H[:, midi_of < 0]
-        out['odd_' + win] = odd_even(V, PITCHES)
+        out['odd_' + win], out['low_' + win] = partial_features(V, PITCHES)
         out['nmf_s_per_hop_' + win] = per_hop
     return out
 
@@ -177,6 +205,7 @@ def main():
     ap.add_argument('--set', default='solo,comp,mix2,mix3')
     ap.add_argument('--cache', required=True)
     ap.add_argument('--jobs', type=int, default=4)
+    ap.add_argument('--refresh-features', action='store_true', help='only recompute the spectral features of existing caches')
     a = ap.parse_args()
     os.makedirs(a.cache, exist_ok=True)
     lists = json.load(open(a.takes))
@@ -184,7 +213,7 @@ def main():
             for s in a.set.split(',') for t in lists[s]]
     from multiprocessing import Pool
     with Pool(a.jobs) as pool:
-        for take, msg in pool.imap_unordered(_job, jobs):
+        for take, msg in pool.imap_unordered(refresh_features if a.refresh_features else _job, jobs):
             print(f'{take}: {msg or "cached"}', flush=True)
 
 
