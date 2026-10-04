@@ -1,0 +1,243 @@
+{
+ "_comment": [
+  "MERGED configuration of the POLY improvement session (docs/polyphonic-plan.md section 12): track A bank + track B decomposer + note rule.",
+  "bank: test/poly/bank/make_bank.py kind fit, attack columns only (fitatt): parametric templates with the per-string partial profile",
+  "and the fitted B law of test/poly/bank/profile-dev.json (measured on the DEV players' hex stems), f0 at equal temperament, 122 columns.",
+  "decomposer: test/poly/decomp/decomp.py beta 0.5, active set 60 (baseline 40), 15 multiplicative updates, lambda 400, warm start floor (init_sal 0).",
+  "rule: test/poly/notes.py per-hop rule; thresholds (best) grid-searched by test/poly/merge.py grid on the DEV lists of test/poly/split.json only",
+  "(432 points = the baseline grid-1 space of params-baseline.json, same fixed keys), objective = mean F1 +-50 ms over the six dev sets.",
+  "Per-onset rule (test/poly/decomp/onset_notes.py, 576-point grid): see onset_alternative; more recall, less precision, +10..20 ms latency.",
+  "Use: python3 test/poly/merge.py analyze|grid|events|time --config test/poly/params-merged.json ... (see test/poly/README.md).",
+  "Scores (TEST and fresh takes), the gate and the recommendation: improvement-session report, scratch poly2/merge/README.md."
+ ],
+ "bank": {
+  "kind": "fit",
+  "phases": [
+   "att"
+  ],
+  "stats": "test/poly/bank/profile-dev.json"
+ },
+ "decomposer": {
+  "active": 60,
+  "iter": 15,
+  "lambda": 400.0,
+  "init_sal": 0.0
+ },
+ "rule": "notes",
+ "best": {
+  "win": "medium",
+  "off_win": "medium",
+  "abs_on": 0.008,
+  "frac": 0.12,
+  "rise_x": 1.2,
+  "flux_thr": 2.0,
+  "rise_db": 6.0,
+  "release_db": 20.0,
+  "off_hops": 9,
+  "window_hops": 15,
+  "refractory": 10,
+  "oct_odd": 0.25,
+  "oct_up": 0.5,
+  "max_voices": 6,
+  "agree": 2,
+  "min_delay": 0,
+  "low_guard": 0.0,
+  "harm_up": 1.0
+ },
+ "objective": "mean F1 +-50 ms over the dev lists solo/comp/mix2/mix3/hex2/hex3",
+ "dev_objective": 0.6673631077103569,
+ "dev_f1": {
+  "solo": 0.8023171614771906,
+  "comp": 0.43125,
+  "mix2": 0.7444825895046592,
+  "mix3": 0.6720128307939053,
+  "hex2": 0.7259036144578314,
+  "hex3": 0.6282124500285551
+ },
+ "dev_takes": {
+  "solo": 8,
+  "comp": 4,
+  "mix2": 8,
+  "mix3": 4,
+  "hex2": 12,
+  "hex3": 8
+ },
+ "base": {
+  "win": "medium",
+  "off_win": "medium",
+  "abs_on": 0.02,
+  "frac": 0.12,
+  "rise_x": 3.0,
+  "flux_thr": 3.0,
+  "rise_db": 6.0,
+  "release_db": 20.0,
+  "off_hops": 9,
+  "window_hops": 15,
+  "refractory": 10,
+  "oct_odd": 0.25,
+  "oct_up": 0.5,
+  "max_voices": 6,
+  "agree": 2,
+  "min_delay": 0,
+  "low_guard": 0.0,
+  "harm_up": 0.0
+ },
+ "space": {
+  "abs_on": [
+   0.004,
+   0.008,
+   0.016,
+   0.03
+  ],
+  "frac": [
+   0.12,
+   0.16,
+   0.22
+  ],
+  "rise_x": [
+   1.2,
+   1.5,
+   2.0
+  ],
+  "low_guard": [
+   0.0,
+   0.8,
+   1.2
+  ],
+  "harm_up": [
+   0.0,
+   1.0
+  ],
+  "flux_thr": [
+   2.0,
+   3.0
+  ]
+ },
+ "onset_alternative": {
+  "rule": "onset",
+  "best": {
+   "win": "medium",
+   "off_win": "medium",
+   "decide": 18,
+   "share": 0.1,
+   "integ": 6,
+   "mid": 0,
+   "mid_share": 0.25,
+   "peak_share": 0.0,
+   "abs_on": 0.006,
+   "stat": "max",
+   "rise_x": 1.2,
+   "repick_x": 1.2,
+   "growth": 0.0,
+   "early_share": 0.5,
+   "merge_hops": 10,
+   "flux_thr": 2.0,
+   "rise_db": 6.0,
+   "refractory": 10,
+   "release_db": 20.0,
+   "off_hops": 9,
+   "oct_odd": 0.25,
+   "oct_up": 0.5,
+   "harm_up": 0.0,
+   "low_guard": 0.0,
+   "max_voices": 6
+  },
+  "dev_objective": 0.6756796271610582,
+  "dev_f1": {
+   "solo": 0.7918918918918918,
+   "comp": 0.4786885245901639,
+   "mix2": 0.7278538812785388,
+   "mix3": 0.650887573964497,
+   "hex2": 0.7364167040862147,
+   "hex3": 0.6683391871550426
+  },
+  "base": {
+   "win": "medium",
+   "off_win": "medium",
+   "decide": 15,
+   "share": 0.1,
+   "integ": 6,
+   "mid": 0,
+   "mid_share": 0.25,
+   "peak_share": 0.0,
+   "abs_on": 0.008,
+   "stat": "end",
+   "rise_x": 1.2,
+   "repick_x": 2.0,
+   "growth": 0.0,
+   "early_share": 0.0,
+   "merge_hops": 10,
+   "flux_thr": 2.0,
+   "rise_db": 6.0,
+   "refractory": 10,
+   "release_db": 20.0,
+   "off_hops": 9,
+   "oct_odd": 0.25,
+   "oct_up": 0.5,
+   "harm_up": 0.0,
+   "low_guard": 0.0,
+   "max_voices": 6
+  },
+  "space": {
+   "abs_on": [
+    0.004,
+    0.006,
+    0.008
+   ],
+   "share": [
+    0.1,
+    0.14
+   ],
+   "repick_x": [
+    1.2,
+    2.0
+   ],
+   "stat": [
+    "end",
+    "max"
+   ],
+   "peak_share": [
+    0.0,
+    0.2
+   ],
+   "early_share": [
+    0.0,
+    0.5
+   ],
+   "rise_x": [
+    1.2,
+    1.5
+   ],
+   "decide": [
+    12,
+    15,
+    18
+   ]
+  }
+ },
+ "cache_settings": {
+  "bank": {
+   "kind": "fit",
+   "phases": [
+    "att"
+   ],
+   "stats": "test/poly/bank/profile-dev.json",
+   "slope1": false
+  },
+  "decomposer": {
+   "active": 60,
+   "n_iter": 15,
+   "lam": 400.0,
+   "init_sal": 0.0
+  },
+  "windows": [
+   "medium"
+  ],
+  "beta": 0.5,
+  "source": "test/poly/merge.py",
+  "features": [
+   "/tmp/claude-0/-home-user-jamrack/f2e45f81-54fc-5f95-b768-232c8729525a/scratchpad/poly2/merge/features-fresh",
+   "/tmp/claude-0/-home-user-jamrack/f2e45f81-54fc-5f95-b768-232c8729525a/scratchpad/poly2/cache-baseline"
+  ]
+ }
+}

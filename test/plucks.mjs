@@ -121,3 +121,103 @@ export const ons = ev => ev.filter(e => e.t === 'on');
 export const offs = ev => ev.filter(e => e.t === 'off');
 export const bends = ev => ev.filter(e => e.t === 'bend');
 export const meters = ev => ev.filter(e => e.t === 'meter');
+
+// ---------------------------------------------------------------------------
+// Polyphony generators (POLY bench, docs/polyphonic-plan.md jalon 1). Every
+// function below returns a plain Float32Array like pluck(); the exact labels
+// (which note starts when) come from chordLabels() / repick's `at` list.
+
+/** Realistic strum spreads (seconds between two consecutive strings). */
+export const STRUM_SPREAD = { fast: 0.005, medium: 0.015, slow: 0.035 };
+
+/**
+ * Strum order of a chord: low string first (downstroke, the default) or high
+ * string first (`up: true`). Notes are given as MIDI numbers, one per string.
+ */
+export function strumOrder(notes, up = false) {
+  const o = [...notes].sort((a, b) => a - b);
+  return up ? o.reverse() : o;
+}
+
+/**
+ * Exact labels of a chord(): [{ midi, at }] in strum order, `at` in seconds
+ * from the start of the returned signal.
+ */
+export function chordLabels(o) {
+  const at = o.at ?? 0, spread = o.spread ?? 0;
+  return strumOrder(o.notes, o.up).map((midi, i) => ({ midi, at: at + i * spread }));
+}
+
+/**
+ * A chord: one pluck per note, each on its own string (so the notes overlap
+ * and ring together), onsets staggered by `spread` seconds in strum order.
+ *   chord(sr, { notes: [midi...], at, dur, spread, up, total, ...pluck options })
+ *     at      seconds before the first string is hit (default 0)
+ *     dur     how long each string rings (default 1 s)
+ *     spread  seconds between two consecutive strings (default 0: all at once)
+ *     up      true for an upstroke (high string first)
+ *     total   length of the returned signal in seconds (default at + dur + spread·(n-1))
+ * Any other option (amp, decay, fundamental, stiffness, cut, ...) is passed
+ * to every pluck; `seed` is offset per string so the pick noise differs.
+ */
+export function chord(sr, o) {
+  const { notes: _n, at: _a, dur: _d, spread: _s, up: _u, total: _t, ...rest } = o;
+  const dur = o.dur ?? 1;
+  const labels = chordLabels(o);
+  const last = labels[labels.length - 1].at;
+  const totalSec = o.total ?? (last + dur);
+  const out = new Float32Array(Math.round(sr * totalSec));
+  labels.forEach(({ midi, at }, i) => {
+    const p = pluck(sr, { ...rest, midi, dur, seed: (o.seed ?? 7) + 31 * i });
+    const off = Math.round(at * sr);
+    for (let j = 0; j < p.length && off + j < out.length; j++) out[off + j] += p[j];
+  });
+  return out;
+}
+
+/**
+ * chord() with a named strum speed instead of a spread in seconds:
+ *   strum(sr, { notes, at, dur, speed: 'fast' | 'medium' | 'slow', up })
+ * fast = 5 ms per string (a flat-pick hit), medium = 15 ms (GuitarSet median
+ * strum spread is 13-16 ms), slow = 35 ms (GuitarSet 90th centile 34-37 ms).
+ */
+export function strum(sr, o) {
+  const spread = STRUM_SPREAD[o.speed ?? 'medium'];
+  if (spread === undefined) throw new Error(`strum: unknown speed "${o.speed}"`);
+  const { speed: _s, ...rest } = o;
+  return chord(sr, { ...rest, spread });
+}
+
+/**
+ * The same note re-picked on ONE string: each pick stops the string ~5 ms
+ * before the next attack (exactly like seq(), which this wraps).
+ *   repick(sr, { midi, at: [t0, t1, ...], dur, total, ...pluck options })
+ *     dur    how long the last pick rings (default 0.5 s); earlier picks are
+ *            cut by the next one
+ *     total  length of the signal (default last at + dur)
+ */
+export function repick(sr, o) {
+  const { midi, at, dur = 0.5, total, ...rest } = o;
+  const times = [...at].sort((a, b) => a - b);
+  const totalSec = total ?? (times[times.length - 1] + dur);
+  return seq(sr, totalSec, times.map((t, i) => ({ ...rest, at: t, midi, dur, seed: (o.seed ?? 7) + 17 * i })));
+}
+
+/**
+ * Palm mute: damps the whole signal from `at` seconds with a short
+ * raised-cosine fade of `release` seconds, then silence (plus the same
+ * -80 dBFS floor pluck() carries, so a tracker sees "a string that stopped",
+ * not a digital zero). Returns a copy; the input is left intact.
+ */
+export function muteAt(signal, sr, at, release = 0.01, noiseAmp = 1e-4, seed = 5) {
+  const out = new Float32Array(signal.length);
+  const start = Math.round(at * sr), fade = Math.max(1, Math.round(release * sr));
+  const rng = makeRng(seed);
+  for (let i = 0; i < signal.length; i++) {
+    if (i < start) { out[i] = signal[i]; continue; }
+    const u = (i - start) / fade;
+    const g = u >= 1 ? 0 : 0.5 * (1 + Math.cos(Math.PI * u));
+    out[i] = signal[i] * g + rng() * noiseAmp;
+  }
+  return out;
+}

@@ -29,6 +29,10 @@ JAMRACK is a playable instrument rack — plain **HTML/CSS/JS + the Web Audio AP
 
 ### Plays with whatever you have
 
+![GUITAR → MIDI card: tuner, level, latencies and the tracking controls](docs/screenshots/guitar-to-midi.png)
+![LOOPER card: six track strips with mixer and effects](docs/screenshots/looper.png)
+
+
 - **Computer keyboard** — two rows form a piano mapped by **physical key position**, so AZERTY/QWERTY/QWERTZ all work. `Z/X` octave, `C/V` velocity, `Space` sustain.
 - **Touch** — multi-touch with glissando; dedicated **PLAY / SOUNDS** views on phones (portrait *and* landscape).
 - **MIDI** — USB/Bluetooth keyboards auto-detected (Chrome/Edge): notes, velocity, sustain, pitch bend.
