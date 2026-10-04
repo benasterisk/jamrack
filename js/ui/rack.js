@@ -238,12 +238,31 @@ export function createRack(container, api) {
     notesRow.appendChild(stepper(t('octave'), g.octave, -2, 2, v => { g.octave = v; changed(); }));
     body.appendChild(section(t('gtrNotes'), notesRow));
 
+    // POLY bank profile: generic or a calibration of this guitar
+    const profRow = el(`<div class="mod-sec-row gtr-poly-only">
+      <select class="sel-bank sel-profile" title="${esc(t('gtrTitleProfile'))}"></select>
+      <button class="tb-btn btn-calibrate" title="${esc(t('gtrTitleCalibrate'))}">${esc(t('gtrCalibrate'))}</button>
+    </div>`);
+    gtr.profSel = profRow.querySelector('.sel-profile');
+    gtr.profSel.addEventListener('change', () => api.guitarProfile(gtr.profSel.value || null));
+    profRow.querySelector('.btn-calibrate').addEventListener('click', () => api.guitarCalibrate());
+    body.appendChild(section(t('gtrProfile'), profRow));
+    setGuitarProfiles(api.guitarProfiles(), g.profileId);
+
     // current state (a language change rebuilds the card while it runs)
     setGuitarRunning(api.guitarRunning());
     setGuitarDevices(api.guitarDevices(), state.guitar.deviceId);
     setGuitarStatus(api.guitarStatusText());
     drawGuitarMeter(-200);
     return root;
+  }
+
+  /** Fills the POLY profile menu: generic + the saved calibrations. */
+  function setGuitarProfiles(list, currentId) {
+    if (!gtr || !gtr.profSel) return;
+    const known = (list || []).some(p => p.id === currentId);
+    gtr.profSel.innerHTML = `<option value="" ${!known ? 'selected' : ''}>${esc(t('gtrGeneric'))}</option>`
+      + (list || []).map(p => `<option value="${esc(p.id)}" ${p.id === currentId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   }
 
   function setGuitarStatus(text, isErr = false) {
@@ -1360,7 +1379,7 @@ export function createRack(container, api) {
 
   return {
     rebuild, setStatus, refreshSoloMute,
-    setGuitarStatus, setGuitarRunning, setGuitarDevices, setGuitarMeter,
+    setGuitarStatus, setGuitarRunning, setGuitarDevices, setGuitarMeter, setGuitarProfiles,
     setLooperMeter, setLooperEvents, setLooperStatus, refreshLooperSources,
     refreshSampler(id) {
       const c = cards.get(id);

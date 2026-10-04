@@ -35,6 +35,8 @@ export function createGuitarInput(ctx, handlers) {
   let mode = 'mono';
   let bank = null;               // POLY template bank, built once on demand
   let bankSent = false;          // ... already handed to the current worklet node
+  let profile = null;            // calibrated profile the bank is rendered from (null = generic)
+  let onAudio = null;            // raw-input listener while the calibration assistant runs
   let gain = 1;
   let devices = [];
   let deviceId = '';
@@ -54,6 +56,7 @@ export function createGuitarInput(ctx, handlers) {
       else if (e.t === 'bend') handlers.bend(e.semis);
       else if (e.t === 'meter') handlers.meter && handlers.meter(e);
       else if (e.t === 'mode') handlers.mode && handlers.mode(e.mode);
+      else if (e.t === 'audio') { if (onAudio) onAudio(e.data); }
     }
   }
 
@@ -80,8 +83,34 @@ export function createGuitarInput(ctx, handlers) {
   }
 
   function polyBank() {
-    if (!bank) bank = buildBank('medium');   // ~50 ms, once per page
+    if (!bank) bank = profile ? buildBank('medium', { bLaw: profile.bLaw, prof: profile.prof }) : buildBank('medium');   // ~50 ms
     return bank;
+  }
+
+  /** Renders the POLY bank from a calibrated profile (null = generic) and hands it to the running engine. */
+  function setProfile(p) {
+    profile = p || null;
+    bank = null;
+    bankSent = false;
+    if (!running || mode !== 'poly') return;
+    if (fallback) {
+      dispatch(fallback.flush());
+      fallback = makeFallback();
+    } else if (node && node.port) {
+      node.port.postMessage({ bank: polyBank() });
+      bankSent = true;
+    }
+  }
+
+  /** Streams the raw input (blocks of the context rate) to `fn` until stopCapture(). */
+  function startCapture(fn) {
+    onAudio = fn;
+    if (node && node.port && !fallback) node.port.postMessage({ capture: true });
+  }
+
+  function stopCapture() {
+    onAudio = null;
+    if (node && node.port && !fallback) node.port.postMessage({ capture: false });
   }
 
   function makeFallback() {
@@ -151,7 +180,11 @@ export function createGuitarInput(ctx, handlers) {
         console.warn('Guitar tracker: AudioWorklet unavailable, using ScriptProcessor', err && err.message);
         fallback = makeFallback();
         node = ctx.createScriptProcessor(256, 1, 1);
-        node.onaudioprocess = ev => dispatch(fallback.process(ev.inputBuffer.getChannelData(0)));
+        node.onaudioprocess = ev => {
+          const data = ev.inputBuffer.getChannelData(0);
+          dispatch(fallback.process(data));
+          if (onAudio) onAudio(Float32Array.from(data));
+        };
         compat = true;
       }
       src.connect(gainNode);
@@ -242,9 +275,10 @@ export function createGuitarInput(ctx, handlers) {
   }
 
   return {
-    start, stop, setParams, setMode, setGain,
+    start, stop, setParams, setMode, setGain, setProfile, startCapture, stopCapture,
     get running() { return running; },
     get mode() { return mode; },
+    get profile() { return profile; },
     get devices() { return devices; },
     get deviceId() { return deviceId; },
     get status() { return status; },

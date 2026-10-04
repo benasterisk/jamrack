@@ -80,6 +80,7 @@ export function defaultGuitar() {
     bend: true,         // bends/vibrato become pitch bend (false = chromatic)
     octave: 0,          // -2..2
     mode: 'mono',       // 'mono' | 'poly' (beta): which tracker runs
+    profileId: null,    // POLY bank profile saved by the calibration assistant (null = generic)
     collapsed: false,
   };
 }

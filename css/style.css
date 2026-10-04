@@ -1525,3 +1525,24 @@ select optgroup {
 .gtr-mode button small { font-size: 9px; margin-left: 2px; vertical-align: super; opacity: .8; }
 .module.guitar.poly .gtr-mono-only { opacity: .35; pointer-events: none; }
 .module.guitar.poly .gtr-cents { visibility: hidden; }
+
+/* ---------------- POLY calibration assistant ---------------- */
+.module.guitar:not(.poly) .gtr-poly-only { opacity: .35; pointer-events: none; }
+.module.guitar .sel-profile { flex: 1 1 140px; min-width: 0; }
+.cal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.cal-actions .tb-btn { cursor: pointer; }
+.cal-msg { font-size: 13px; min-height: 18px; color: var(--teal); }
+.cal-progress { font-size: 12px; letter-spacing: .18em; color: var(--dim); text-transform: uppercase; }
+.cal-string {
+  font-family: var(--f-brand); font-size: 20px; font-weight: 500; margin: 8px 0 10px; color: var(--lcd-txt);
+  text-shadow: 0 0 10px #ffc46b55;
+}
+.cal-meter { height: 10px; border-radius: 5px; background: var(--lcd-bg); border: 1px solid #000; box-shadow: inset 0 2px 6px #000c; overflow: hidden; }
+.cal-meter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #5fbf72, #ffb454 70%, #ff5040); transition: width .08s; }
+.cal-status { margin: 10px 0 4px; min-height: 22px; font-size: 15px; }
+.cal-status.wait { color: var(--dim); }
+.cal-status.ok { color: var(--teal); }
+.cal-status.err { color: var(--red); }
+.cal-summary td { padding: 4px 8px; font-size: 14px; border-bottom: 1px solid var(--line-soft); }
+.cal-summary td:first-child { color: var(--dim); }
+.cal-list .bank-url { flex: 1; }

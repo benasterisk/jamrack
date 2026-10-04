@@ -165,6 +165,8 @@ export function setupDialogs(api) {
       <p>${t('helpGuitarText')}</p>
       <h3>${esc(t('helpPolyTitle'))}</h3>
       <p>${t('helpPolyText')}</p>
+      <h3>${esc(t('helpCalibTitle'))}</h3>
+      <p>${t('helpCalibText')}</p>
       <h3>${esc(t('helpRepeatTitle'))}</h3>
       <p>${t('helpRepeatText')}</p>`;
 
