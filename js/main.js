@@ -12,12 +12,13 @@ import {
   setProtectedKeysProvider as setProtectedSfz,
 } from './audio/sfz/index.js';
 import { getSample, deleteSample } from './audio/sampledb.js';
-import { applyPreset } from './audio/presets.js';
+import { applyPreset, ANALOG_PRESETS } from './audio/presets.js';
 import { Metronome } from './audio/metronome.js';
 import { Recorder } from './audio/recorder.js';
 import { attachPcKeyboard, getKeyLabels, NOTE_CODES } from './input/pckeys.js';
 import { initMidi } from './input/midi.js';
 import { createGuitarInput } from './input/guitar.js';
+import { createLooper } from './audio/looper/index.js';
 import { createRack } from './ui/rack.js';
 import { createPiano } from './ui/piano.js';
 import { setupDialogs } from './ui/dialogs.js';
@@ -345,6 +346,8 @@ const rack = createRack(document.getElementById('rack'), {
     state.instances.forEach(loadSound);
     refreshRouting();
     emit('instances');
+    // The looper was recording that module: it says so and falls back to the rack.
+    if (state.looper.source === id) applyLooperSource();
   },
   // Hardware-rack model: you ADD a unit of a given type, you never morph an
   // existing one. Each type arrives ready to play.
@@ -394,6 +397,43 @@ const rack = createRack(document.getElementById('rack'), {
   guitarRunning: () => guitar.running,
   guitarDevices: () => guitar.devices,
   guitarStatusText: () => guitarStatusText(guitar.status),
+  // --- LOOPER section (the looper object is created further below)
+  async looperToggle(i) { if (await looperGesture()) looper.toggle(i); },
+  async looperPlay() { if (await looperGesture()) looper.play(); },
+  looperStop: () => looper.stop(),
+  looperClear: i => looper.clear(i),
+  looperClearAll: () => looper.clearAll(),
+  looperUndo: i => looper.undo(i),
+  looperTrack: (i, params) => looper.setTrack(i, params),
+  looperSource(value) {
+    if (value !== undefined) state.looper.source = value;
+    return applyLooperSource();
+  },
+  looperSync: () => applyLooperSync(),
+  looperMax: sec => looper.setMaxSeconds(sec),
+  looperMonitor: v => looper.setMonitor(v),
+  looperStatusText: () => looperShown.text,
+  looperStatusErr: () => looperShown.isErr,
+  looperRunning: () => looperState.running,
+  looperSources() {
+    const engineLabel = { bank: 'engineBank', analog: 'engineAnalog', sfz: 'engineSfz', sampler: 'engineSampler' };
+    const soundName = inst => {
+      if (inst.engine === 'analog') {
+        const p = ANALOG_PRESETS.find(x => x.id === inst.preset);
+        const key = `preset_${inst.preset}`;
+        return t(key) !== key ? t(key) : (p ? p.name : inst.preset);
+      }
+      if (inst.engine === 'sfz') return sfzLabel(inst);
+      if (inst.engine === 'sampler') return inst.sampler.sampleName || t('engineSampler');
+      return instrumentName(inst.instrument);
+    };
+    return [
+      { value: 'rack', label: t('lpSourceRack') },
+      { value: 'input', label: t('lpSourceInput') },
+      ...state.instances.map((inst, i) =>
+        ({ value: inst.id, label: `${i + 1} · ${t(engineLabel[inst.engine] || 'engineBank')} · ${soundName(inst)}` })),
+    ];
+  },
 });
 
 // ---------------------------------------------------------------- guitar → MIDI
@@ -407,7 +447,11 @@ const guitar = createGuitarInput(engine.ctx, {
   meter: info => rack.setGuitarMeter(info, guitar.latency()),
   status: st => rack.setGuitarStatus(guitarStatusText(st), st.key === 'noMic' || st.key === 'denied'),
   devices: (list, id) => rack.setGuitarDevices(list, id),
-  running: on => rack.setGuitarRunning(on),
+  running: on => {
+    rack.setGuitarRunning(on);
+    // the input latency is only known once a stream is open
+    if (on) looper.refreshLatency();
+  },
 });
 
 function applyGuitarParams() {
@@ -422,6 +466,106 @@ function guitarStatusText(st) {
     noMic: 'gtrNoMic', denied: 'gtrDenied', ended: 'gtrEnded' }[st.key] || 'gtrOff';
   const detail = st.detail ? ` — ${st.detail}` : '';
   return t(key) + detail;
+}
+
+// ---------------------------------------------------------------- looper
+// Six loop tracks fed by the rack's dry bus, one module, or the audio input.
+// The engine lives in an AudioWorklet (js/audio/looper/); here we only turn
+// state.looper into engine calls and relay what it reports to the card.
+
+const looperState = { running: false };
+// What the card shows. Kept apart from looper.status because a failed source
+// falls back to the rack (status 'ready') while the message must stay.
+const looperShown = { st: { key: 'off', detail: '' }, text: '', isErr: false };
+
+const looper = createLooper(engine, {
+  meter(m) {
+    looperState.running = m.running;
+    rack.setLooperMeter(m, looper.latency());
+  },
+  events(list) {
+    for (const ev of list) if (ev.t === 'transport') looperState.running = ev.running;
+    rack.setLooperEvents(list);
+  },
+  status: st => showLooperStatus(st),
+}, {
+  maxSeconds: state.looper.maxSeconds,
+  moduleOut: id => (audios.get(id) ? audios.get(id).out : null),
+});
+
+function looperStatusText(st) {
+  const key = { ready: 'lpReady', unsupported: 'lpUnsupported', noMic: 'lpNoMic', denied: 'lpDenied',
+    ended: 'lpEnded', noModule: 'lpNoModule' }[st.key] || 'lpReady';
+  return t(key) + (st.detail ? ` — ${st.detail}` : '');
+}
+
+function showLooperStatus(st) {
+  looperShown.st = st;
+  looperShown.text = looperStatusText(st);
+  looperShown.isErr = st.key !== 'off' && st.key !== 'ready';
+  rack.setLooperStatus(looperShown.text, looperShown.isErr);
+}
+
+/** The beat quantum follows the METRO tempo while SYNC is on. */
+function applyLooperSync() {
+  const bpm = state.metronome.bpm;
+  looper.setSync(state.looper.sync && bpm ? bpm : 0);
+}
+
+function applyLooperParams() {
+  const L = state.looper;
+  L.tracks.forEach((p, i) => looper.setTrack(i, p));
+  looper.setMaxSeconds(L.maxSeconds);
+  looper.setMonitor(L.monitor);
+  applyLooperSync();
+}
+
+/**
+ * Points the engine at state.looper.source: 'rack', 'input' (the device the
+ * GUITAR section chose) or a module id. A module that no longer exists, or an
+ * input that cannot be opened, falls back to the rack — keeping the message
+ * that says why, and the menu in step.
+ */
+async function applyLooperSource() {
+  const L = state.looper;
+  let src = null, why = null;
+  if (L.source === 'input') src = { kind: 'input', deviceId: state.guitar.deviceId };
+  else if (L.source === 'rack') src = { kind: 'rack' };
+  else if (audios.has(L.source)) src = { kind: 'module', id: L.source };
+  else why = { key: 'noModule', detail: '' };   // deleted module (or a stale save)
+  let ok = false;
+  if (src) {
+    ok = await looper.setSource(src);
+    if (!ok) why = { ...looper.status };
+  }
+  if (!ok) {
+    L.source = 'rack';
+    emit('looper');
+    await looper.setSource({ kind: 'rack' });
+    showLooperStatus(why);
+    rack.refreshLooperSources();
+  }
+  return ok;
+}
+
+// The worklet loads at startup (cheap, no permission involved) and the
+// saved source follows — except an audio INPUT, which would ask for the
+// microphone on page load: that one waits for the first transport gesture.
+const looperReady = looper.init().then(async ok => {
+  if (!ok) return false;
+  applyLooperParams();
+  if (state.looper.source !== 'input') await applyLooperSource();
+  return true;
+});
+
+/** Before a transport command: audio unlocked, engine loaded, source open. */
+async function looperGesture() {
+  await engine.resume();
+  if (!(await looperReady)) return false;
+  if (state.looper.source === 'input' && looper.source.kind !== 'input') await applyLooperSource();
+  // "that module is gone" has been read by now: back to the live status
+  if (looperShown.st.key === 'noModule') showLooperStatus(looper.status);
+  return true;
 }
 
 // ---------------------------------------------------------------- touch piano
@@ -548,6 +692,7 @@ bpmInput.addEventListener('change', () => {
   metronome.setBpm(Number(bpmInput.value));
   bpmInput.value = metronome.bpm;
   state.metronome.bpm = metronome.bpm;
+  applyLooperSync();
   emit('metro');
   bpmInput.blur(); // hand focus back to the musical keyboard
 });
@@ -651,6 +796,7 @@ function applyLanguage() {
   rack.rebuild();
   // rebuild() blanks every LCD: re-post each module's status in the new language
   state.instances.forEach(loadSound);
+  showLooperStatus(looperShown.st);   // same message, new language
   refreshRouting();
   renderPiano(true); // keep the PC keys in view
   dialogs.refresh();
@@ -770,4 +916,4 @@ window.addEventListener('resize', debounce(syncMobileView, 200));
 syncMobileView();
 
 // console handle for debugging
-window.JAMRACK = { engine, state, audios, routeNoteOn, routeNoteOff, loadSound, metronome, rack };
+window.JAMRACK = { engine, state, audios, routeNoteOn, routeNoteOff, loadSound, metronome, rack, looper };
