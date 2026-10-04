@@ -36,11 +36,28 @@ Intégration (jalon 2, première partie) :
   Chaînes dans les 12 langues (`gtrTitleMode`, `gtrCpu`, `helpPolyTitle`,
   `helpPolyText`).
 
+Assistant de calibration (jalon 3) :
+
+- `js/audio/guitar/poly/calibrate.js` porte l'extracteur Python
+  (`test/poly/bank/extract.py`) : détection de l'attaque, spectre d'attaque
+  10-40 ms, ajustement de l'inharmonicité B sur un spectre à 0,37 Hz (pics
+  paraboliques, trois tours, rejet des partiels à plus de 1 %), profil de
+  partiels unitaire, accord en cents ; refus nommés (trop faible, pas de
+  partiels, mauvaise corde avec la note entendue). Tests
+  `test/poly-calibrate.test.mjs` sur cordes synthétiques : B retrouvé à
+  < 12 %, f0 à < 3 cents.
+- `js/ui/calibration.js` : bouton **CALIBRER** de la carte (POLY) → une
+  corde à vide à la fois (puis, au choix, la 12e frette pour la pente de la
+  loi B), niveau en direct, résultat par corde, résumé, profil nommé.
+  Profils dans IndexedDB (`profiles.js`), export / import JSON, menu
+  **PROFIL** sur la carte (Générique toujours disponible) ; le worklet
+  reconstruit son moteur sur la nouvelle banque sans arrêter l'entrée. Le
+  signal brut est relayé par le worklet (`{ capture }`, blocs de 2048).
+
 Pas encore fait (plan §14) : bend par note (`routeNoteBend`) — le prototype
 ne produit pas de hauteur continue par voix, le moteur n'émet donc aucun
-bend en POLY ; assistant de calibration (jalon 3) ; évaluation GuitarSet
-via le moteur JS sur les six jeux de mixes, revue adversariale et PR
-(jalon 4).
+bend en POLY ; essai à la guitare par le propriétaire (calibration comprise :
+le navigateur de la session automatisée n'a pas de micro) ; PR.
 
 ## 2. Équivalence avec le prototype Python
 
@@ -111,13 +128,18 @@ d'essai en parallèle) le dense montait à 4,0 ms.
   worklet en mode POLY donne exactement `on 57` / `off 57` (La3) ; le
   message `{ mode: 'mono' }` répond par un événement `mode`.
 - Carte : sélecteur, grisage, manuel, persistance vérifiés ; aucune erreur
-  console. Le micro n'est pas testable depuis la session automatisée : essai à
+  console. Calibration : dialogue, refus propre sans micro, relais du signal
+  (blocs de 2048 avec signal), échange de banque en cours de route (sol2
+  re-détecté), import d'un profil exporté → sélectionné et persisté,
+  fichier étranger refusé, suppression. Vue téléphone (375 px) : aucun
+  débordement, commandes à la taille du doigt. Revue de code (effort
+  élevé) : 3 constats corrigés. Le micro n'est pas testable depuis la session automatisée : essai à
   la guitare par le propriétaire à faire (voir §6).
 
 ## 5. Tests
 
-`node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs test/poly-engine.test.mjs`
-— 39 tests. `test/poly-engine.test.mjs` : FFT contre DFT, noyau du
+`node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs test/poly-engine.test.mjs test/poly-calibrate.test.mjs`
+— 43 tests. `test/poly-engine.test.mjs` : FFT contre DFT, noyau du
 rééchantillonneur, normes et pics de la banque, décomposeur sur un gabarit
 isolé, silence et souffle, pincements synthétiques sur huit cordes (latence
 20-36 ms, note-off 43-46 ms après l'étouffement), bicorde, coût (informatif).

@@ -17,7 +17,8 @@ aux changements de session. Détails : `docs/local-setup.md`.
   seulement, pour l'instant). Moteur : `js/audio/engine.js` (bus `dry` →
   master ; `latencyHint: 0` sur desktop).
 - Tests : `node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs
-  test/poly-engine.test.mjs` (39 tests, ~25 s, Node 20+).
+  test/poly-engine.test.mjs test/poly-calibrate.test.mjs` (43 tests, ~30 s,
+  Node 20+).
 - Le propriétaire (benasterisk) ne code pas lui-même : il dirige, teste à la
   guitare et décide du périmètre. Répondre **en français**, sans jargon
   inutile, avec des chiffres mesurés plutôt que des promesses.
@@ -91,11 +92,14 @@ aux changements de session. Détails : `docs/local-setup.md`.
   (moteur JS sur GuitarSet, format dump-events, coût par hop),
   `test/poly-engine.test.mjs` (8 tests ; 39 au total avec les deux autres
   fichiers), `test/poly/export-profile.py` (régénère `profile.js`).
+- **Jalon 3 fait (5-6 octobre)** : assistant de calibration
+  (`js/audio/guitar/poly/calibrate.js` + `js/ui/calibration.js`), profils
+  IndexedDB (`profiles.js`, export/import), menu PROFIL et bouton CALIBRER
+  sur la carte, `state.guitar.profileId`, relais audio et échange de banque
+  dans le worklet. Non testé avec un vrai micro (session automatisée).
 - **Pas fait** : bend par note (le prototype ne donne pas de hauteur continue
-  par voix, POLY n'émet aucun bend), assistant de calibration (jalon 3 ;
-  `buildBank(win, { bLaw, prof })` accepte déjà un profil), évaluation des
-  six jeux de mixes via le moteur JS, essai à la guitare par le
-  propriétaire, revue adversariale et PR (jalon 4).
+  par voix, POLY n'émet aucun bend), essai à la guitare par le propriétaire
+  (MONO inchangé, POLY, calibration), PR vers `main`.
 - **Décision prise le 5 octobre (plan §14) : option 2.** POLY « bêta »
   derrière le sélecteur, MONO par défaut, « notes seules mieux que MONO,
   doubles et triades au mieux ». Branche `feature/poly`, PR vers `main`
