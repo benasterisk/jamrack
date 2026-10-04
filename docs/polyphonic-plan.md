@@ -375,3 +375,56 @@ Notes de lecture :
 - Prises hexaphoniques : l'archive n'était pas disponible pendant cette
   session (téléchargement incomplet) ; la latence « référencée
   hexaphonique » de la section 4 reste à produire au jalon 1 bis.
+
+
+## 12. Résultat du jalon 1 bis (prototype de levée de risque, 5 octobre)
+
+Prototype hors ligne : banque générique de 120 gabarits inharmoniques
+(valeurs B de Barbancho 2012, B doublé toutes les 6 cases, amplitudes
+1/n^1,2) + NMF β = 0,5 parcimonieuse, fenêtre de 43 ms ancrée sur
+l'échantillon le plus récent, hop 2,67 ms, règle de note-on sur deux hops.
+Code dans `test/poly/`, notation par `test/score.py`, vérifié par un agent
+adversarial (reproduction des chiffres, contrôle de fuite, prises
+nouvelles, mir_eval refait à la main).
+
+**Ce qui tient, sur des prises jamais vues par le réglage :**
+
+| Jeu (prises nouvelles) | POLY F1 | Mono F1 | Rappel POLY doubles / triades |
+|---|---|---|---|
+| Solo (12 prises) | 72,8 % | 72,9 % | — |
+| Deux solos superposés (mix2b) | 65,0 % | 46,9 % | 52,8 % / — |
+| Trois solos superposés (mix3b) | 56,8 % | 30,6 % | 42,7 % / 42,6 % |
+| Deux cordes hexaphoniques d'accords (hex2b) | 64,0 % | 40,5 % | 54,2 % / — |
+| Trois cordes hexaphoniques (hex3b) | 55,8 % | 24,9 % | 47,3 % / 53,9 % |
+| Accords complets (comp2) | 41,0 % | 5 % | 28 % / 38 % (4 notes : 29 %) |
+
+POLY fait jeu égal avec le mono sur les lignes solo, avec ≤ 1 % de notes
+fantômes contre 8 à 16 % pour le mono, à +5 ms de latence médiane, et
+double le mono sur tout ce qui est polyphonique.
+
+**Ce qui ne tient pas :** la porte « doubles-notes ≥ 80 % de rappel avec
+étiquettes exactes » n'est atteinte nulle part (48 à 54 %), et le critère du
+jalon 3 (2-3 notes ≥ 90 %) est hors de portée de ce décomposeur : avec la
+banque générique, seules 83 % des notes de doubles-notes et 54 % des notes
+d'accords obtiennent jamais une activation suffisante (plafond mesuré).
+
+**Corrections du vérificateur :** tous les chiffres viennent du décomposeur
+à 6 itérations / λ 0,02 ; la variante annoncée (15 itérations / λ 400),
+réglée proprement, est réellement meilleure (hex2b : F1 64 → 75, doubles
+54 → 63 %, précision 88 %, 0,9 ms par hop en numpy) et devient le point de
+départ ; la séparation DEV / TEST du prototype était contaminée (par joueur
+à refaire) ; « POLY meilleur que mono sur solo » ne se généralise pas (égalité).
+
+**Décision appliquée (règle du jalon 1 bis) :** pas de lancement du jalon 3
+sur ce décomposeur. Une **session d'amélioration** d'abord, mesurée sur le
+même banc avec une séparation propre par joueur, trois pistes classées par
+gain attendu : (1) banque de gabarits dérivée des données (spectres moyens
+par corde × case des pistes hexaphoniques, réponse du micro incluse) avec
+contrôle sur une autre guitare (GOAT, électrique en direct) pour rester
+générique ; (2) convergence du décomposeur (plus de gabarits actifs,
+démarrage à chaud non nul, 8-15 mises à jour, λ à l'échelle) ; (3) décision
+par attaque sur l'activation intégrée sur 40 ms au lieu de deux hops. Porte
+de sortie : sur prises nouvelles, doubles ≥ 70 % et triades ≥ 60 % avec
+précision ≥ 80 % → jalon 3 avec périmètre « doubles-notes et triades
+fiables, accords complets partiels » ; sinon POLY est annoncé comme
+« doubles-notes et triades » et le plan est revu.
