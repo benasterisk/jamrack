@@ -82,6 +82,7 @@ export class PolyTracker {
     this.dbHist = new Float64Array((FLUX_LAG + 1) * FLUX_BINS);
     this.odd = new Float64Array(N_PITCH);
     this.low = new Float64Array(N_PITCH);
+    this._pk = new Float64Array(6);          // scratch: partial peaks of one pitch (no per-hop allocation)
     // bins of partials 1..6 of every pitch (centre of the ±1-bin max)
     this.pbin = new Int32Array(N_PITCH * 6);
     for (let j = 0; j < N_PITCH; j++) {
@@ -191,9 +192,8 @@ export class PolyTracker {
     void FLUX_FLOOR_DB;
 
     // partial ratios (sub-octave and sub-harmonic guards)
-    const V = this.V, pb = this.pbin, odd = this.odd, low = this.low;
+    const V = this.V, pb = this.pbin, odd = this.odd, low = this.low, pk = this._pk;
     for (let j = 0; j < N_PITCH; j++) {
-      const pk = new Array(6);
       for (let n = 0; n < 6; n++) {
         const c = pb[j * 6 + n];
         const a = V[c - 1], b2 = V[c], c2 = V[c + 1];

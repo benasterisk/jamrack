@@ -20,7 +20,7 @@ export function setupCalibration(api) {
   const dlg = document.getElementById('calDlg');
   const body = document.getElementById('calBody');
   dlg.querySelector('[data-close]').addEventListener('click', () => dlg.close());
-  dlg.addEventListener('close', () => stopStep());
+  dlg.addEventListener('close', () => { stopStep(); step = null; });   // step = null cancels a pending advance()
 
   let open = [];          // results per open string
   let fret12 = [];        // results at the 12th fret (optional pass)
@@ -140,6 +140,12 @@ export function setupCalibration(api) {
     const bar = body.querySelector('.cal-meter i');
     meterTimer = setInterval(() => {
       if (!cap || !bar) return;
+      if (!api.guitar.running) {           // the input went away mid-step: say so instead of waiting forever
+        stopStep();
+        const st = body.querySelector('.cal-status');
+        if (st) { st.className = 'cal-status err'; st.textContent = t('gtrOff'); }
+        return;
+      }
       const v = Math.max(0, Math.min(1, (cap.levelDb + 60) / 60));
       bar.style.width = `${Math.round(100 * v)}%`;
       if (cap.onset >= 0) body.querySelector('.cal-status').textContent = t('calAnalysing');
@@ -156,7 +162,8 @@ export function setupCalibration(api) {
     if (r.ok) {
       st.className = 'cal-status ok';
       st.textContent = t('calResult', fmtB(r.B), fmtCents(r.cents), r.n);
-      setTimeout(() => advance(r), 900);
+      const mine = step;
+      setTimeout(() => { if (step === mine) advance(r); }, 900);   // not after a retry / skip / close
       return;
     }
     st.className = 'cal-status err';
