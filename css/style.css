@@ -1546,3 +1546,9 @@ select optgroup {
 .cal-summary td { padding: 4px 8px; font-size: 14px; border-bottom: 1px solid var(--line-soft); }
 .cal-summary td:first-child { color: var(--dim); }
 .cal-list .bank-url { flex: 1; }
+@media (max-width: 780px) {
+  /* finger-sized POLY controls in the phone's edit view */
+  body.m-edit .module.guitar .sel-profile { min-height: 40px; font-size: 15px; }
+  body.m-edit .gtr-mode button { padding: 8px 12px; font-size: 13px; }
+  body.m-edit .btn-calibrate { min-height: 40px; }
+}
