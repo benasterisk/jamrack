@@ -1318,3 +1318,203 @@ select optgroup {
   #viewTabs { padding-top: 0; }
   .vt-btn { min-height: 30px; padding: 4px 8px; font-size: 11px; }
 }
+
+/* ---------------- GUITAR → MIDI section ---------------- */
+.module.guitar {
+  background:
+    linear-gradient(180deg, #ffffff0a, transparent 30%),
+    linear-gradient(180deg, #1f2221, #171a19);
+}
+.module.guitar .gtr-title { margin-right: 4px; }
+.module.guitar .mod-selects { flex: 1 1 180px; }
+.module.guitar select.sel-input { flex: 1 1 160px; min-width: 0; }
+.module.guitar .mod-lcd { flex: 2 1 240px; }
+.module.guitar .mod-body { align-items: center; }
+.gtr-tuner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--lcd-bg);
+  border: 1px solid #000;
+  border-radius: 6px;
+  box-shadow: inset 0 2px 8px #000d, 0 1px 0 #ffffff12;
+  min-width: 250px;
+}
+.gtr-note {
+  font-family: var(--f-brand);
+  font-size: 22px;
+  font-weight: 800;
+  min-width: 64px;
+  text-align: center;
+  color: #6b5a3a;
+  text-shadow: none;
+  transition: color .08s;
+}
+.gtr-note.heard { color: var(--lcd-txt); text-shadow: 0 0 8px #ffc46b66; }
+.gtr-note.playing { color: var(--teal); text-shadow: 0 0 10px #3ad0c488; }
+.gtr-cents {
+  position: relative;
+  width: 110px; height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #5a2a22 0%, #4a3b16 35%, #1f3d2a 47%, #1f3d2a 53%, #4a3b16 65%, #5a2a22 100%);
+  box-shadow: inset 0 1px 3px #000c;
+}
+.gtr-cents::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: -3px; bottom: -3px;
+  width: 1px;
+  background: #ffffff55;
+}
+.gtr-cents i {
+  position: absolute;
+  top: -2px;
+  left: calc(50% + var(--c, 0) * 50%);
+  width: 4px; height: 14px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: #6b5a3a;
+  transition: left .05s linear;
+}
+.gtr-cents.heard i { background: var(--amber); box-shadow: 0 0 6px #ffb45499; }
+.gtr-cents.intune i { background: var(--teal); box-shadow: 0 0 6px #3ad0c499; }
+.gtr-meter {
+  width: 90px; height: 26px;
+  background: #15100a;
+  border: 1px solid #000;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 6px #000c;
+}
+.gtr-lat {
+  color: var(--dim);
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 120px;
+}
+.gtr-lat b { color: var(--lcd-txt); font-weight: 400; }
+.gtr-power .led.on.teal { background: var(--teal); }
+@media (max-width: 780px), (max-height: 520px) {
+  body.m-edit .gtr-tuner { flex-wrap: wrap; min-width: 0; width: 100%; }
+  body.m-edit .module.guitar .mod-selects { flex: 1 1 100%; }
+  body.m-edit .module.guitar select.sel-input { min-height: 40px; font-size: 15px; }
+}
+
+/* ---------------- LOOPER section ---------------- */
+/* Six strips under one transport. A cooler, slightly violet tint tells it
+   apart from the instruments (amber) and the guitar input (green-grey). */
+.module.looper {
+  background:
+    linear-gradient(180deg, #ffffff0a, transparent 30%),
+    linear-gradient(180deg, #201c24, #17141b);
+}
+.module.looper .lp-title { margin-right: 4px; }
+.module.looper .lp-lcd {
+  flex: 2 1 260px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.lp-time { flex: none; font-weight: 600; letter-spacing: .04em; }
+.lp-status { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; opacity: .85; }
+.lp-lat { flex: none; font-size: 11px; color: var(--dim); text-shadow: none; }
+.lp-transport { display: flex; gap: 6px; flex-wrap: wrap; }
+.lp-transport .tb-btn { padding: 5px 9px; font-size: 12px; }
+.lp-transport .tb-btn:disabled { opacity: .4; cursor: default; }
+.lp-opts { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; flex-wrap: wrap; min-width: 0; }
+.lp-opts select {
+  background: linear-gradient(180deg, #2e2820, #1c1813);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--txt);
+  font-family: var(--f-label);
+  font-size: 13px;
+  padding: 6px 8px;
+  max-width: 100%;
+  cursor: pointer;
+}
+.lp-opts select:focus { outline: 1px solid var(--amber-dim); }
+.lp-opts select.sel-lpsrc { flex: 1 1 150px; min-width: 0; }
+.lp-opts select.sel-lpmax { flex: none; }
+.lp-opts .toggle { font-size: 12px; }
+.lp-monitor.hidden { display: none; }
+
+/* play head: full width = one loop; red while the first loop is being set */
+.lp-bar {
+  height: 6px;
+  margin-top: 8px;
+  background: var(--lcd-bg);
+  border: 1px solid #000;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 4px #000c;
+  overflow: hidden;
+}
+.lp-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--teal);
+  box-shadow: 0 0 6px #3ad0c488;
+}
+.lp-bar.rec i { background: var(--red); box-shadow: 0 0 6px #ff504088; }
+.module.looper.collapsed .lp-bar { display: none; }
+
+.module.looper .mod-body { flex-direction: column; flex-wrap: nowrap; gap: 6px; align-items: stretch; }
+.lp-track {
+  display: flex;
+  align-items: center;
+  gap: 6px 10px;
+  flex-wrap: wrap;
+  padding: 4px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: #ffffff05;
+}
+.lp-track[data-mode="rec"] { border-color: #7a2c26; background: #ff504008; }
+.lp-track[data-mode="dub"] { border-color: var(--amber-dim); background: #ffb45408; }
+.lp-track[data-mode="play"] { border-color: #1f5a55; }
+.lp-num {
+  font-family: var(--f-brand);
+  font-size: 12px;
+  color: var(--dim);
+  width: 16px;
+  text-align: center;
+  flex: none;
+}
+.lp-rec { min-width: 82px; padding: 5px 9px; font-size: 12px; }
+.lp-track[data-mode="rec"] .lp-rec { border-color: #7a2c26; background: linear-gradient(180deg, #3a201c, #241512); }
+.lp-track[data-mode="dub"] .lp-rec { border-color: var(--amber-dim); background: linear-gradient(180deg, #3a2f1e, #262015); }
+.lp-track[data-mode="play"] .lp-rec { border-color: #1f5a55; }
+.lp-sq { display: flex; gap: 4px; }
+.lp-sq .sq-btn { width: 26px; height: 26px; font-size: 12px; }
+.lp-sq .sq-btn:disabled { opacity: .35; cursor: default; }
+.lp-knobs { display: flex; gap: 2px; align-items: flex-start; }
+.lp-togs { display: flex; gap: 10px; align-items: center; }
+.lp-togs .toggle { font-size: 11px; gap: 5px; }
+.lp-meter {
+  width: 60px; height: 18px;
+  margin-left: auto;
+  background: #15100a;
+  border: 1px solid #000;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 6px #000c;
+  flex: none;
+}
+[dir="rtl"] .lp-track { direction: ltr; }   /* a mixer strip reads left to right everywhere */
+[dir="rtl"] .lp-meter { margin-left: auto; }
+
+@media (max-width: 780px), (max-height: 520px) {
+  body.m-edit .module.looper .lp-lcd { flex: 1 1 100%; }
+  body.m-edit .lp-transport { flex: 1 1 100%; }
+  body.m-edit .lp-transport .tb-btn { flex: 1 1 auto; min-height: 40px; justify-content: center; }
+  body.m-edit .lp-opts { flex: 1 1 100%; }
+  body.m-edit .lp-opts select { min-height: 40px; font-size: 15px; }
+  body.m-edit .lp-opts select.sel-lpsrc { flex: 1 1 100%; }
+  body.m-edit .lp-track { gap: 10px 12px; padding: 8px; }
+  body.m-edit .lp-rec { min-height: 40px; min-width: 96px; font-size: 13px; }
+  body.m-edit .lp-sq .sq-btn { width: 38px; height: 38px; font-size: 15px; }
+  body.m-edit .lp-knobs { flex-wrap: wrap; gap: 8px 10px; }
+  body.m-edit .lp-togs .toggle { min-height: 40px; font-size: 13px; }
+  body.m-edit .lp-meter { width: 80px; height: 22px; }
+}

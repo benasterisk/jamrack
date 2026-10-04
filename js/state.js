@@ -67,6 +67,56 @@ export function defaultSampler() {
   };
 }
 
+// The GUITAR → MIDI section (js/input/guitar.js + js/audio/guitar/). Whether
+// it is running is never saved: starting it asks for the audio input, which
+// must stay a deliberate gesture.
+export function defaultGuitar() {
+  return {
+    deviceId: '',       // chosen audio input ('' = the browser's default)
+    gain: 1,            // input gain 0.1..10
+    sens: 0.5,          // 0..1 onset sensitivity
+    release: 0.5,       // 0..1 how far a string may decay before note-off
+    dyn: 0.7,           // 0..1 velocity dynamics
+    bend: true,         // bends/vibrato become pitch bend (false = chromatic)
+    octave: 0,          // -2..2
+    collapsed: false,
+  };
+}
+
+// One LOOPER track strip (js/audio/looper/). The loops themselves are never
+// saved (minutes of float audio); the mixer settings are.
+export function defaultLooperTrack() {
+  return {
+    vol: 0.8, pan: 0,
+    cutoff: 1,          // 0..1 log -> 40 Hz..18 kHz (low-pass), 1 = open
+    rev: 0, del: 0,     // sends to the shared reverb / delay
+    mute: false, solo: false,
+    reverse: false, half: false,
+    feedback: 1,        // overdub: 1 = layers never fade
+  };
+}
+
+// A phone cannot hold six 5-minute stereo loops (115 MB each): the default
+// cap follows the pointer, which is the one reliable "is this a phone" test.
+function defaultLooperMax() {
+  try {
+    return matchMedia('(hover: hover) and (pointer: fine)').matches ? 300 : 60;
+  } catch {
+    return 60;
+  }
+}
+
+export function defaultLooper() {
+  return {
+    source: 'rack',     // 'rack' | 'input' | an instance id
+    sync: true,         // first loop snaps to whole beats of the METRO tempo
+    maxSeconds: defaultLooperMax(),   // 30 | 60 | 120 | 300
+    monitor: 1,         // 0..1, hear the audio input while looping from it
+    collapsed: false,
+    tracks: Array.from({ length: 6 }, defaultLooperTrack),
+  };
+}
+
 export function defaultInstance(overrides = {}) {
   return {
     id: uid(),
@@ -121,6 +171,8 @@ function defaultState() {
       layout: 'auto',   // 'auto' | 'azerty' | 'qwerty'
     },
     metronome: { bpm: 100, on: false },
+    guitar: defaultGuitar(),
+    looper: defaultLooper(),
     customBanks: [],
     // low: lowest note shown on the piano (C3).
     // mobile: which view is showing on narrow screens ('play' | 'edit'),
@@ -156,6 +208,16 @@ function load() {
     Object.assign(st.kb, saved.kb || {});
     Object.assign(st.metronome, saved.metronome || {});
     st.metronome.on = false;
+    Object.assign(st.guitar, saved.guitar || {});
+    if (saved.looper && typeof saved.looper === 'object') {
+      const { tracks, ...rest } = saved.looper;
+      Object.assign(st.looper, rest);
+      // Tracks merged onto fresh defaults (older saves miss keys); solo is a
+      // performance state like on modules, so it never survives a reload.
+      st.looper.tracks = st.looper.tracks.map((d, i) => ({
+        ...d, ...((Array.isArray(tracks) && tracks[i]) || {}), solo: false,
+      }));
+    }
     if (Array.isArray(saved.customBanks)) st.customBanks = saved.customBanks;
     Object.assign(st.view, saved.view || {});
     if (typeof saved.lang === 'string') st.lang = saved.lang;
@@ -192,6 +254,8 @@ const scheduleSave = debounce(() => {
       master: state.master,
       kb: state.kb,
       metronome: { bpm: state.metronome.bpm, on: false },
+      guitar: state.guitar,
+      looper: state.looper,
       customBanks: state.customBanks,
       view: state.view,
       lang: state.lang,

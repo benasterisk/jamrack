@@ -3,7 +3,7 @@
 import { createKnob } from './knob.js';
 import { GM } from '../data/gm.js';
 import { el, clamp, esc } from '../util.js';
-import { state, allBanks, defaultInstance } from '../state.js';
+import { state, emit, allBanks, defaultInstance } from '../state.js';
 import {
   putSample, getSample, deleteSample,
   putPatch, getPatch, deletePatch, listPatches,
@@ -107,6 +107,8 @@ export function createRack(container, api) {
     container.innerHTML = '';
     cards.clear();
     container.appendChild(buildMaster());
+    container.appendChild(buildGuitar());
+    container.appendChild(buildLooper());
     state.instances.forEach(inst => container.appendChild(buildCard(inst)));
     const add = el(`<div id="addModule">
       <span class="add-label">${esc(t('addTitle'))}</span>
@@ -147,6 +149,449 @@ export function createRack(container, api) {
       onInput: v => { m.delayFeedback = v; api.masterChanged(); },
     }).el);
     return root;
+  }
+
+  // ------------------------------------------------------------ GUITAR → MIDI
+  // An input, not an instrument: what it hears is played by every module
+  // whose PLAY switch is on, exactly like a MIDI keyboard. The display is a
+  // tuner (note heard, cents) plus the input level and the measured latencies.
+  let gtr = null;   // { root, lcd, led, sel, noteEl, centsEl, meter, lat }
+
+  function buildGuitar() {
+    const g = state.guitar;
+    const root = el(`<section class="module guitar ${g.collapsed ? 'collapsed' : ''}">
+      <div class="mod-head">
+        <button class="mod-power gtr-power" title="${esc(t('gtrTitlePower'))}"><span class="led"></span></button>
+        <span class="master-title gtr-title">${esc(t('gtrTitle'))}</span>
+        <div class="mod-lcd gtr-lcd">—</div>
+        <div class="mod-selects">
+          <select class="sel-bank sel-input" title="${esc(t('gtrTitleDevice'))}"></select>
+        </div>
+        <div class="mod-btns">
+          <button class="sq-btn btn-fold" title="${esc(t('titleFold'))}">${g.collapsed ? '▸' : '▾'}</button>
+        </div>
+      </div>
+      <div class="mod-body">
+        <div class="gtr-tuner" title="${esc(t('gtrTitleTuner'))}">
+          <div class="gtr-note">—</div>
+          <div class="gtr-cents"><i></i></div>
+          <canvas class="gtr-meter" width="90" height="26"></canvas>
+          <div class="gtr-lat mono"></div>
+        </div>
+      </div>
+    </section>`);
+    const body = root.querySelector('.mod-body');
+    gtr = {
+      root,
+      lcd: root.querySelector('.gtr-lcd'),
+      led: root.querySelector('.gtr-power .led'),
+      sel: root.querySelector('.sel-input'),
+      noteEl: root.querySelector('.gtr-note'),
+      centsEl: root.querySelector('.gtr-cents'),
+      meter: root.querySelector('.gtr-meter'),
+      lat: root.querySelector('.gtr-lat'),
+    };
+
+    root.querySelector('.gtr-power').addEventListener('click', () => api.guitarToggle());
+    root.querySelector('.btn-fold').addEventListener('click', e => {
+      g.collapsed = !g.collapsed;
+      root.classList.toggle('collapsed', g.collapsed);
+      e.currentTarget.textContent = g.collapsed ? '▸' : '▾';
+      api.guitarChanged();
+    });
+    gtr.sel.addEventListener('change', () => api.guitarDevice(gtr.sel.value));
+
+    const changed = () => api.guitarChanged();
+    body.appendChild(section(t('gtrInput'), row(
+      createKnob({ label: t('gtrGain'), value: g.gain, min: 0.1, max: 10, def: 1, curve: 'log',
+        format: v => `${v >= 1 ? '+' : ''}${Math.round(20 * Math.log10(v))}dB`,
+        onInput: v => { g.gain = v; changed(); } }).el,
+      createKnob({ label: t('gtrSens'), value: g.sens, def: 0.5, format: fmtPct,
+        onInput: v => { g.sens = v; changed(); } }).el,
+    )));
+
+    const notesRow = row(
+      createKnob({ label: t('gtrRelease'), value: g.release, def: 0.5, format: fmtPct,
+        onInput: v => { g.release = v; changed(); } }).el,
+      createKnob({ label: t('gtrDyn'), value: g.dyn, def: 0.7, format: fmtPct,
+        onInput: v => { g.dyn = v; changed(); } }).el,
+    );
+    const bendTog = el(`<label class="toggle" title="${esc(t('gtrTitleBend'))}">
+      <input type="checkbox" ${g.bend ? 'checked' : ''}><span class="sw"></span>${esc(t('gtrBend'))}</label>`);
+    bendTog.querySelector('input').addEventListener('change', e => { g.bend = e.target.checked; changed(); });
+    notesRow.appendChild(bendTog);
+    notesRow.appendChild(stepper(t('octave'), g.octave, -2, 2, v => { g.octave = v; changed(); }));
+    body.appendChild(section(t('gtrNotes'), notesRow));
+
+    // current state (a language change rebuilds the card while it runs)
+    setGuitarRunning(api.guitarRunning());
+    setGuitarDevices(api.guitarDevices(), state.guitar.deviceId);
+    setGuitarStatus(api.guitarStatusText());
+    drawGuitarMeter(-200);
+    return root;
+  }
+
+  function setGuitarStatus(text, isErr = false) {
+    if (!gtr) return;
+    gtr.lcd.textContent = text;
+    gtr.lcd.classList.toggle('err', isErr);
+  }
+
+  function setGuitarRunning(on) {
+    if (!gtr) return;
+    gtr.led.classList.toggle('on', on);
+    gtr.led.classList.toggle('teal', on);
+    gtr.root.classList.toggle('running', on);
+    if (!on) {
+      gtr.noteEl.textContent = '—';
+      gtr.noteEl.classList.remove('heard', 'playing');
+      gtr.centsEl.classList.remove('heard', 'intune');
+      gtr.centsEl.style.setProperty('--c', '0');
+      gtr.lat.textContent = '';
+      drawGuitarMeter(-200);
+    }
+  }
+
+  // Labels only exist once the input has been allowed; before that the
+  // browser's default input is the only choice.
+  function setGuitarDevices(list, currentId) {
+    if (!gtr) return;
+    const known = list.some(d => d.id === currentId);
+    gtr.sel.innerHTML = `<option value="" ${!known ? 'selected' : ''}>${esc(t('gtrDefaultDevice'))}</option>`
+      + list.map(d => `<option value="${esc(d.id)}" ${d.id === currentId ? 'selected' : ''}>${esc(d.label)}</option>`).join('');
+  }
+
+  function drawGuitarMeter(db) {
+    if (!gtr) return;
+    const c = gtr.meter, g2 = c.getContext('2d');
+    const w = c.width, h = c.height, segs = 12;
+    g2.clearRect(0, 0, w, h);
+    const lit = Math.max(0, Math.min(segs, Math.round((db + 60) / 60 * segs)));
+    const bw = (w - (segs + 1) * 3) / segs;
+    for (let i = 0; i < segs; i++) {
+      g2.fillStyle = i < lit ? (i > segs - 3 ? '#ff5040' : i > segs - 6 ? '#ffb454' : '#5fbf72') : '#2a241d';
+      g2.fillRect(3 + i * (bw + 3), 5, bw, h - 10);
+    }
+  }
+
+  /** Tuner + level, from a tracker meter event and the browser's latencies. */
+  function setGuitarMeter(info, lat) {
+    if (!gtr) return;
+    drawGuitarMeter(info.db);
+    const heard = !Number.isNaN(info.midiF);
+    if (heard) {
+      const nearest = Math.round(info.midiF);
+      const cents = (info.midiF - nearest) * 100;
+      gtr.noteEl.textContent = noteName(nearest);
+      gtr.centsEl.style.setProperty('--c', (clamp(cents, -50, 50) / 50).toFixed(3));
+      gtr.centsEl.classList.toggle('intune', Math.abs(cents) < 5);
+    } else {
+      gtr.noteEl.textContent = info.note >= 0 ? noteName(info.note) : '—';
+      gtr.centsEl.classList.remove('intune');
+    }
+    gtr.noteEl.classList.toggle('heard', heard);
+    gtr.noteEl.classList.toggle('playing', info.note >= 0);
+    gtr.centsEl.classList.toggle('heard', heard);
+    const ms = v => (Number.isNaN(v) ? '?' : String(Math.round(v)));
+    gtr.lat.innerHTML = `IN <b>${ms(lat.input)}</b> · OUT <b>${ms(lat.output)}</b> · TRK <b>${ms(info.latMs)}</b> ms`;
+  }
+
+  // ------------------------------------------------------------------ LOOPER
+  // Six loop tracks over one transport (js/audio/looper/). The card is pure
+  // view: every control writes state.looper, calls api.looper* and emits.
+  // The engine reports back through setLooperMeter/Events/Status; the last
+  // meter and status are kept here so a rebuild (language change, preset
+  // change…) redraws the card without asking the engine.
+  const LP_TRACKS = 6;
+  const LP_MAX = [[30, '30 s'], [60, '1 min'], [120, '2 min'], [300, '5 min']];
+  let lp = null;   // { root, time, status, lat, bar, play, undo, src, monitor, tracks: [...] }
+  const lpLast = { meter: null, latency: null, status: '', isErr: false, toggled: 0 };
+  const lpPeaks = new Float32Array(LP_TRACKS);
+
+  // m:ss.t — tenths are what you need to see a loop close where you meant it
+  function fmtLoop(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec - m * 60;
+    return `${m}:${s < 10 ? '0' : ''}${s.toFixed(1)}`;
+  }
+
+  function buildLooper() {
+    const L = state.looper;
+    const root = el(`<section class="module looper ${L.collapsed ? 'collapsed' : ''}">
+      <div class="mod-head">
+        <span class="master-title lp-title">${esc(t('looper'))}</span>
+        <div class="mod-lcd lp-lcd" title="${esc(t('lpTitleLcd'))}">
+          <span class="lp-time">—</span><span class="lp-status"></span><span class="lp-lat"></span>
+        </div>
+        <div class="lp-transport">
+          <button class="tb-btn lp-play" title="${esc(t('lpTitlePlay'))}">▶ ${esc(t('lpPlay'))}</button>
+          <button class="tb-btn lp-stop" title="${esc(t('lpTitleStop'))}">■ ${esc(t('lpStop'))}</button>
+          <button class="tb-btn lp-undo" title="${esc(t('lpTitleUndo'))}">${esc(t('lpUndo'))}</button>
+          <button class="tb-btn lp-clearall" title="${esc(t('lpTitleClearAll'))}">✕ ${esc(t('lpClearAll'))}</button>
+        </div>
+        <div class="lp-opts">
+          <select class="sel-bank sel-lpsrc" title="${esc(t('lpTitleSource'))}"></select>
+          <label class="toggle lp-sync" title="${esc(t('lpTitleSync'))}">
+            <input type="checkbox" ${L.sync ? 'checked' : ''}><span class="sw"></span>${esc(t('lpSync'))}</label>
+          <select class="sel-bank sel-lpmax" title="${esc(t('lpTitleMax'))}">${
+            LP_MAX.map(([v, lab]) => `<option value="${v}" ${v === L.maxSeconds ? 'selected' : ''}>${esc(t('lpMax'))} ${lab}</option>`).join('')
+          }</select>
+        </div>
+        <div class="mod-btns">
+          <button class="sq-btn btn-fold" title="${esc(t('titleFold'))}">${L.collapsed ? '▸' : '▾'}</button>
+        </div>
+      </div>
+      <div class="lp-bar" title="${esc(t('lpTitleBar'))}"><i></i></div>
+      <div class="mod-body lp-tracks"></div>
+    </section>`);
+
+    lp = {
+      root,
+      time: root.querySelector('.lp-time'),
+      status: root.querySelector('.lp-status'),
+      lat: root.querySelector('.lp-lat'),
+      lcd: root.querySelector('.lp-lcd'),
+      bar: root.querySelector('.lp-bar'),
+      play: root.querySelector('.lp-play'),
+      undo: root.querySelector('.lp-undo'),
+      src: root.querySelector('.sel-lpsrc'),
+      monitor: null,
+      tracks: [],
+    };
+    const changed = () => emit('looper');
+
+    // --- header ---
+    lp.play.addEventListener('click', () => api.looperPlay());
+    root.querySelector('.lp-stop').addEventListener('click', () => api.looperStop());
+    lp.undo.addEventListener('click', () => {
+      // the last track touched may have no layer yet (REC just pressed):
+      // then undo the most recent track that has one, never a silent no-op
+      const i = lp.tracks[lpLast.toggled].undo ? lpLast.toggled : lp.tracks.findIndex(tr => tr.undo);
+      if (i >= 0) api.looperUndo(i);
+    });
+    root.querySelector('.lp-clearall').addEventListener('click', () => {
+      const any = lp.tracks.some(tr => tr.has);
+      if (any && !confirm(t('lpConfirmClearAll'))) return;
+      api.looperClearAll();
+    });
+    root.querySelector('.btn-fold').addEventListener('click', e => {
+      L.collapsed = !L.collapsed;
+      root.classList.toggle('collapsed', L.collapsed);
+      e.currentTarget.textContent = L.collapsed ? '▸' : '▾';
+      changed();
+    });
+
+    const opts = root.querySelector('.lp-opts');
+    lp.src.addEventListener('change', () => {
+      L.source = lp.src.value;
+      api.looperSource(L.source);
+      changed();
+      lp.monitor.classList.toggle('hidden', L.source !== 'input');
+    });
+    root.querySelector('.lp-sync input').addEventListener('change', e => {
+      L.sync = e.target.checked;
+      api.looperSync(L.sync);
+      changed();
+    });
+    root.querySelector('.sel-lpmax').addEventListener('change', e => {
+      L.maxSeconds = Number(e.target.value);
+      api.looperMax(L.maxSeconds);
+      changed();
+    });
+    // Monitoring only means something when the looper listens to the audio
+    // input: an internal source is already heard through the rack.
+    lp.monitor = createKnob({ small: true, label: t('lpMonitor'), value: L.monitor, def: 1, format: fmtPct,
+      onInput: v => { L.monitor = v; api.looperMonitor(v); changed(); } }).el;
+    lp.monitor.title = t('lpTitleMonitor');
+    lp.monitor.classList.add('lp-monitor');
+    lp.monitor.classList.toggle('hidden', L.source !== 'input');
+    opts.appendChild(lp.monitor);
+
+    // --- the six strips ---
+    const body = root.querySelector('.lp-tracks');
+    for (let i = 0; i < LP_TRACKS; i++) body.appendChild(buildLooperTrack(i));
+
+    refreshLooperSources();
+    setLooperStatus(lpLast.status, lpLast.isErr);
+    if (lpLast.meter) setLooperMeter(lpLast.meter, lpLast.latency);
+    else lp.tracks.forEach((_, i) => drawLooperMeter(i, 0));
+    return root;
+  }
+
+  function buildLooperTrack(i) {
+    const p = state.looper.tracks[i];
+    const strip = el(`<div class="lp-track" data-i="${i}">
+      <span class="lp-num">${i + 1}</span>
+      <button class="tb-btn led-btn lp-rec" title="${esc(t('lpTitleTrack'))}"><span class="led"></span><span class="lp-mode">${esc(t('lpRec'))}</span></button>
+      <div class="lp-sq">
+        <button class="sq-btn lp-mute ${p.mute ? 'active-amber' : ''}" title="${esc(t('lpTitleMute'))}">${esc(t('lpMute'))}</button>
+        <button class="sq-btn lp-solo ${p.solo ? 'active-teal' : ''}" title="${esc(t('lpTitleSolo'))}">${esc(t('lpSolo'))}</button>
+        <button class="sq-btn lp-tundo" title="${esc(t('lpTitleUndo'))}" disabled>↶</button>
+        <button class="sq-btn lp-clear" title="${esc(t('lpTitleClear'))}">✕</button>
+      </div>
+      <div class="lp-knobs"></div>
+      <div class="lp-togs"></div>
+      <canvas class="lp-meter" width="60" height="18"></canvas>
+    </div>`);
+    const tr = {
+      el: strip, has: false, undo: false, mode: 'idle',
+      led: strip.querySelector('.lp-rec .led'),
+      mode_: strip.querySelector('.lp-mode'),
+      undoBtn: strip.querySelector('.lp-tundo'),
+      mute: strip.querySelector('.lp-mute'),
+      solo: strip.querySelector('.lp-solo'),
+      meter: strip.querySelector('.lp-meter'),
+    };
+    lp.tracks[i] = tr;
+
+    const set = patch => {
+      Object.assign(p, patch);
+      api.looperTrack(i, patch);
+      emit('looper');
+    };
+
+    strip.querySelector('.lp-rec').addEventListener('click', () => {
+      lpLast.toggled = i;        // the header UNDO follows the last track touched
+      api.looperToggle(i);
+    });
+    tr.mute.addEventListener('click', () => {
+      set({ mute: !p.mute });
+      tr.mute.classList.toggle('active-amber', p.mute);
+    });
+    tr.solo.addEventListener('click', () => {
+      set({ solo: !p.solo });
+      tr.solo.classList.toggle('active-teal', p.solo);
+    });
+    tr.undoBtn.addEventListener('click', () => { lpLast.toggled = i; api.looperUndo(i); });
+    strip.querySelector('.lp-clear').addEventListener('click', () => {
+      if (tr.has && !confirm(t('lpConfirmClear'))) return;
+      api.looperClear(i);
+    });
+
+    const knobs = strip.querySelector('.lp-knobs');
+    const knob = (opts, title) => { const k = createKnob({ small: true, ...opts }).el; k.title = t(title); return k; };
+    knobs.append(
+      knob({ label: t('lpLevel'), value: p.vol, def: 0.8, format: fmtPct, onInput: v => set({ vol: v }) }, 'lpTitleLevel'),
+      knob({ label: t('lpPan'), value: p.pan, min: -1, max: 1, def: 0, format: fmtPan, onInput: v => set({ pan: v }) }, 'lpTitlePan'),
+      knob({ label: t('lpCut'), value: p.cutoff, def: 1, format: v => fmtHz(40 * Math.pow(450, v)), onInput: v => set({ cutoff: v }) }, 'lpTitleCut'),
+      knob({ label: t('lpRev'), value: p.rev, def: 0, format: fmtPct, onInput: v => set({ rev: v }) }, 'lpTitleRev'),
+      knob({ label: t('lpDel'), value: p.del, def: 0, format: fmtPct, onInput: v => set({ del: v }) }, 'lpTitleDel'),
+      knob({ label: t('lpFb'), value: p.feedback, def: 1, format: fmtPct, onInput: v => set({ feedback: v }) }, 'lpTitleFb'),
+    );
+
+    const togs = strip.querySelector('.lp-togs');
+    const tgl = (key, label, title) => {
+      const l = el(`<label class="toggle" title="${esc(title)}"><input type="checkbox" ${p[key] ? 'checked' : ''}>
+        <span class="sw"></span>${esc(label)}</label>`);
+      l.querySelector('input').addEventListener('change', e => set({ [key]: e.target.checked }));
+      return l;
+    };
+    togs.append(tgl('reverse', t('lpReverse'), t('lpTitleReverse')), tgl('half', t('lpHalf'), t('lpTitleHalf')));
+    return strip;
+  }
+
+  /** The SOURCE menu: RACK, INPUT, then every module (ids are rack-internal). */
+  function refreshLooperSources() {
+    if (!lp) return;
+    const list = api.looperSources();
+    // A source that is not in the list (its module was deleted) displays as
+    // RACK, but the state is left alone: the wiring owns that fallback and
+    // tells the player about it.
+    const cur = list.some(o => o.value === state.looper.source) ? state.looper.source : 'rack';
+    lp.src.innerHTML = list.map(o =>
+      `<option value="${esc(o.value)}" ${o.value === cur ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
+    lp.monitor.classList.toggle('hidden', cur !== 'input');
+  }
+
+  function setLooperStatus(text, isErr = false) {
+    lpLast.status = text;
+    lpLast.isErr = isErr;
+    if (!lp) return;
+    lp.lcd.classList.toggle('err', isErr);
+    refreshLooperHint();
+  }
+
+  // What the LCD says: an error always wins; otherwise the hint follows the
+  // transport (empty → "press REC", recording the first loop → "press again").
+  function refreshLooperHint() {
+    const m = lpLast.meter;
+    let text = lpLast.status;
+    if (!lpLast.isErr && m) {
+      if (m.recordingFirst) text = t('lpRecordingFirst');
+      else if (!m.length) text = t('lpEmpty');
+    } else if (!lpLast.isErr && !m) {
+      text = t('lpEmpty');
+    }
+    if (lp.status.textContent !== text) lp.status.textContent = text;
+  }
+
+  function setLooperTrack(i, info) {
+    const tr = lp && lp.tracks[i];
+    if (!tr) return;
+    tr.has = !!info.has;
+    tr.undo = !!info.undo;
+    if (tr.mode !== info.mode) {
+      tr.mode = info.mode;
+      tr.led.className = 'led ' + ({ rec: 'on red', dub: 'on blink', play: 'on teal' }[info.mode] || '');
+      tr.mode_.textContent = t({ rec: 'lpRec', dub: 'lpDub', play: 'lpPlaying' }[info.mode] || 'lpRec');
+      tr.el.dataset.mode = info.mode;
+    }
+    tr.undoBtn.disabled = !tr.undo;
+    tr.el.classList.toggle('has', tr.has);
+  }
+
+  function drawLooperMeter(i, rms) {
+    const c = lp.tracks[i].meter, g = c.getContext('2d');
+    const w = c.width, h = c.height, segs = 8;
+    // peak hold with a quick fall, like the master VU
+    lpPeaks[i] = Math.max(rms, lpPeaks[i] * 0.9);
+    const db = 20 * Math.log10(lpPeaks[i] + 1e-6);
+    const lit = Math.max(0, Math.min(segs, Math.round((db + 42) / 42 * segs)));
+    g.clearRect(0, 0, w, h);
+    const bw = (w - (segs + 1) * 2) / segs;
+    for (let k = 0; k < segs; k++) {
+      g.fillStyle = k < lit ? (k > segs - 2 ? '#ff5040' : k > segs - 4 ? '#ffb454' : '#5fbf72') : '#2a241d';
+      g.fillRect(2 + k * (bw + 2), 3, bw, h - 6);
+    }
+  }
+
+  /** ~30/s from the engine: play head, levels, track modes. */
+  function setLooperMeter(m, latency) {
+    lpLast.meter = m;
+    lpLast.latency = latency;
+    if (!lp) return;
+    const sr = api.audioCtx.sampleRate;
+    const len = m.length / sr, pos = m.pos / sr;
+    let time = '—';
+    if (m.recordingFirst) time = `${fmtLoop(pos)} / —`;
+    else if (m.length) time = `${fmtLoop(pos)} / ${fmtLoop(len)}`;
+    if (lp.time.textContent !== time) lp.time.textContent = time;
+    // progress: fraction of the loop, or of the cap while the first loop grows
+    const frac = m.recordingFirst ? pos / Math.max(1, state.looper.maxSeconds)
+      : (m.length ? pos / len : 0);
+    lp.bar.firstElementChild.style.width = `${Math.min(100, frac * 100).toFixed(1)}%`;
+    lp.bar.classList.toggle('rec', !!m.recordingFirst);
+    lp.bar.classList.toggle('run', !!m.running);
+    lp.play.setAttribute('aria-pressed', String(!!m.running));
+    const input = state.looper.source === 'input' && latency && latency.input > 0;
+    const latText = latency ? `${input ? `IN ${Math.round(latency.input)} · ` : ''}OUT ${Math.round(latency.output)} ms` : '';
+    if (lp.lat.textContent !== latText) lp.lat.textContent = latText;
+    for (let i = 0; i < LP_TRACKS; i++) {
+      setLooperTrack(i, m.tracks[i]);
+      drawLooperMeter(i, m.levels[i]);
+    }
+    lp.undo.disabled = !lp.tracks.some(tr => tr.undo);
+    refreshLooperHint();
+  }
+
+  /** State changes the engine reports between meters (track mode, length…). */
+  function setLooperEvents(list) {
+    if (!lp) return;
+    for (const ev of list) {
+      if (ev.t === 'track') setLooperTrack(ev.i, ev);
+      else if (ev.t === 'transport') lp.play.setAttribute('aria-pressed', String(!!ev.running));
+      else if (ev.t === 'length' && !ev.length) lp.time.textContent = '—';
+    }
   }
 
   function buildCard(inst) {
@@ -887,6 +1332,8 @@ export function createRack(container, api) {
 
   return {
     rebuild, setStatus, refreshSoloMute,
+    setGuitarStatus, setGuitarRunning, setGuitarDevices, setGuitarMeter,
+    setLooperMeter, setLooperEvents, setLooperStatus, refreshLooperSources,
     refreshSampler(id) {
       const c = cards.get(id);
       if (c && c.drawSampler) c.drawSampler();

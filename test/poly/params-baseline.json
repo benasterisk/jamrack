@@ -1,0 +1,135 @@
+{
+ "_comment": [
+  "BASELINE of the POLY improvement session (docs/polyphonic-plan.md section 12): the numbers to beat.",
+  "Decomposer: test/poly/analyze.py --iter 15 --lambda 400 --windows medium,short (generic bank of templates.py, beta 0.5, active set 40).",
+  "Thresholds (\"best\"): grid-searched by test/poly/notes.py grid on the DEV lists of the split by player (test/poly/split.json:",
+  "players 00 and 03; 8 solo, 4 comp, 8 mix2, 4 mix3, 12 hex2, 8 hex3 takes), objective = mean F1 +-50 ms over the six dev sets.",
+  "Grid 1 (\"space\", 432 points, fixed keys in \"base\"): best objective 0.669 (dev F1: solo 0.810 comp 0.406 mix2 0.747 mix3 0.677 hex2 0.728 hex3 0.647).",
+  "Grid 2 (\"refine_space\", 27 points around the best): same best (abs_on 0.006/0.011 and rise_x 1.0/1.1 are worse, frac 0.14..0.18 is flat).",
+  "Use: python3 test/poly/notes.py events --params test/poly/params-baseline.json ...; the TEST scores (the numbers to beat) are reported in the improvement-session report (scratch poly2/test-table.md)."
+ ],
+ "decomposer": {
+  "iter": 15,
+  "lambda": 400.0,
+  "windows": [
+   "medium",
+   "short"
+  ],
+  "cache_settings": {
+   "n_iter": 15,
+   "lambda": 400.0,
+   "windows": [
+    "medium",
+    "short"
+   ],
+   "beta": 0.5,
+   "active_max": 40
+  }
+ },
+ "best": {
+  "win": "medium",
+  "off_win": "medium",
+  "abs_on": 0.008,
+  "frac": 0.16,
+  "rise_x": 1.2,
+  "flux_thr": 2.0,
+  "rise_db": 6.0,
+  "release_db": 20.0,
+  "off_hops": 9,
+  "window_hops": 15,
+  "refractory": 10,
+  "oct_odd": 0.25,
+  "oct_up": 0.5,
+  "max_voices": 6,
+  "agree": 2,
+  "min_delay": 0,
+  "low_guard": 0.0,
+  "harm_up": 0.0
+ },
+ "objective": "mean F1 +-50 ms over the dev lists solo/comp/mix2/mix3/hex2/hex3",
+ "dev_objective": 0.6693946622659522,
+ "dev_f1": {
+  "solo": 0.8101983002832861,
+  "comp": 0.4063231850117096,
+  "mix2": 0.7470109995217601,
+  "mix3": 0.6773946360153257,
+  "hex2": 0.7283181600383326,
+  "hex3": 0.6471226927252985
+ },
+ "dev_takes": {
+  "solo": 8,
+  "comp": 4,
+  "mix2": 8,
+  "mix3": 4,
+  "hex2": 12,
+  "hex3": 8
+ },
+ "base": {
+  "win": "medium",
+  "off_win": "medium",
+  "abs_on": 0.02,
+  "frac": 0.12,
+  "rise_x": 3.0,
+  "flux_thr": 3.0,
+  "rise_db": 6.0,
+  "release_db": 20.0,
+  "off_hops": 9,
+  "window_hops": 15,
+  "refractory": 10,
+  "oct_odd": 0.25,
+  "oct_up": 0.5,
+  "max_voices": 6,
+  "agree": 2,
+  "min_delay": 0,
+  "low_guard": 0.0,
+  "harm_up": 0.0
+ },
+ "space": {
+  "abs_on": [
+   0.004,
+   0.008,
+   0.016,
+   0.03
+  ],
+  "frac": [
+   0.12,
+   0.16,
+   0.22
+  ],
+  "rise_x": [
+   1.2,
+   1.5,
+   2.0
+  ],
+  "low_guard": [
+   0.0,
+   0.8,
+   1.2
+  ],
+  "harm_up": [
+   0.0,
+   1.0
+  ],
+  "flux_thr": [
+   2.0,
+   3.0
+  ]
+ },
+ "refine_space": {
+  "abs_on": [
+   0.006,
+   0.008,
+   0.011
+  ],
+  "frac": [
+   0.14,
+   0.16,
+   0.18
+  ],
+  "rise_x": [
+   1.0,
+   1.1,
+   1.2
+  ]
+ }
+}

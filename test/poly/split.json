@@ -1,0 +1,949 @@
+{
+ "dev_players": [
+  "00",
+  "03"
+ ],
+ "test_players": [
+  "01",
+  "02",
+  "04",
+  "05"
+ ],
+ "dev": {
+  "solo": [
+   "00_BN1-129-Eb_solo",
+   "00_Funk1-97-C_solo",
+   "00_Jazz2-110-Bb_solo",
+   "00_Rock2-85-F_solo",
+   "03_BN2-166-Ab_solo",
+   "03_Funk3-112-C#_solo",
+   "03_Rock1-130-A_solo",
+   "03_SS1-68-E_solo"
+  ],
+  "comp": [
+   "00_BN2-166-Ab_comp",
+   "00_Funk3-112-C#_comp",
+   "03_Funk1-97-C_comp",
+   "03_Jazz2-110-Bb_comp"
+  ],
+  "mix2": [
+   "mix2_00+13",
+   "mix2_01+14",
+   "mix2_02+15",
+   "mix2_03+12",
+   "mix2_12+01",
+   "mix2_13+02",
+   "mix2_14+03",
+   "mix2_15+00"
+  ],
+  "mix3": [
+   "mix3_00+13+02",
+   "mix3_01+14+03",
+   "mix3_02+15+00",
+   "mix3_03+12+01"
+  ],
+  "hex2": [
+   "hex2_00_BN2-166-Ab_comp_s12",
+   "hex2_00_BN2-166-Ab_comp_s34",
+   "hex2_00_BN2-166-Ab_comp_s04",
+   "hex2_00_Funk3-112-C#_comp_s12",
+   "hex2_00_Funk3-112-C#_comp_s34",
+   "hex2_00_Funk3-112-C#_comp_s04",
+   "hex2_03_Funk1-97-C_comp_s12",
+   "hex2_03_Funk1-97-C_comp_s34",
+   "hex2_03_Funk1-97-C_comp_s04",
+   "hex2_03_Jazz2-110-Bb_comp_s12",
+   "hex2_03_Jazz2-110-Bb_comp_s34",
+   "hex2_03_Jazz2-110-Bb_comp_s04"
+  ],
+  "hex3": [
+   "hex3_00_BN2-166-Ab_comp_s012",
+   "hex3_00_BN2-166-Ab_comp_s345",
+   "hex3_00_Funk3-112-C#_comp_s012",
+   "hex3_00_Funk3-112-C#_comp_s345",
+   "hex3_03_Funk1-97-C_comp_s012",
+   "hex3_03_Funk1-97-C_comp_s345",
+   "hex3_03_Jazz2-110-Bb_comp_s012",
+   "hex3_03_Jazz2-110-Bb_comp_s345"
+  ]
+ },
+ "test": {
+  "solo": [
+   "01_Funk2-108-Eb_solo",
+   "01_Jazz2-187-F#_solo",
+   "01_Rock3-117-Bb_solo",
+   "01_SS3-98-C_solo",
+   "02_BN2-131-B_solo",
+   "02_Jazz3-137-Eb_solo",
+   "02_Rock3-148-C_solo",
+   "02_SS1-100-C#_solo",
+   "04_BN3-119-G_solo",
+   "04_Funk3-98-A_solo",
+   "04_Jazz1-130-D_solo",
+   "04_SS2-107-Ab_solo",
+   "05_BN3-154-E_solo",
+   "05_Funk1-114-Ab_solo",
+   "05_Jazz1-200-B_solo",
+   "05_Rock2-142-D_solo"
+  ],
+  "comp": [
+   "01_Jazz1-130-D_comp",
+   "01_Rock1-90-C#_comp",
+   "02_BN3-154-E_comp",
+   "02_SS2-88-F_comp",
+   "04_Rock3-117-Bb_comp",
+   "04_SS3-98-C_comp",
+   "05_BN2-131-B_comp",
+   "05_Funk2-119-G_comp"
+  ],
+  "mix2": [
+   "mix2_04+09",
+   "mix2_05+10",
+   "mix2_06+11",
+   "mix2_07+08",
+   "mix2_08+17",
+   "mix2_09+18",
+   "mix2_10+19",
+   "mix2_11+16",
+   "mix2_16+21",
+   "mix2_17+22",
+   "mix2_18+23",
+   "mix2_19+20",
+   "mix2_20+05",
+   "mix2_21+06",
+   "mix2_22+07",
+   "mix2_23+04"
+  ],
+  "mix3": [
+   "mix3_04+09+18",
+   "mix3_05+10+19",
+   "mix3_06+11+16",
+   "mix3_07+08+17",
+   "mix3_08+17+22",
+   "mix3_09+18+23",
+   "mix3_10+19+20",
+   "mix3_11+16+21"
+  ],
+  "hex2": [
+   "hex2_01_Jazz1-130-D_comp_s12",
+   "hex2_01_Jazz1-130-D_comp_s34",
+   "hex2_01_Jazz1-130-D_comp_s04",
+   "hex2_01_Rock1-90-C#_comp_s12",
+   "hex2_01_Rock1-90-C#_comp_s34",
+   "hex2_01_Rock1-90-C#_comp_s04",
+   "hex2_02_BN3-154-E_comp_s12",
+   "hex2_02_BN3-154-E_comp_s34",
+   "hex2_02_BN3-154-E_comp_s04",
+   "hex2_02_SS2-88-F_comp_s12",
+   "hex2_02_SS2-88-F_comp_s34",
+   "hex2_02_SS2-88-F_comp_s04",
+   "hex2_04_Rock3-117-Bb_comp_s12",
+   "hex2_04_Rock3-117-Bb_comp_s34",
+   "hex2_04_Rock3-117-Bb_comp_s04",
+   "hex2_04_SS3-98-C_comp_s12",
+   "hex2_04_SS3-98-C_comp_s34",
+   "hex2_04_SS3-98-C_comp_s04",
+   "hex2_05_BN2-131-B_comp_s12",
+   "hex2_05_BN2-131-B_comp_s34",
+   "hex2_05_BN2-131-B_comp_s04",
+   "hex2_05_Funk2-119-G_comp_s12",
+   "hex2_05_Funk2-119-G_comp_s34",
+   "hex2_05_Funk2-119-G_comp_s04"
+  ],
+  "hex3": [
+   "hex3_01_Jazz1-130-D_comp_s012",
+   "hex3_01_Jazz1-130-D_comp_s345",
+   "hex3_01_Rock1-90-C#_comp_s012",
+   "hex3_01_Rock1-90-C#_comp_s345",
+   "hex3_02_BN3-154-E_comp_s012",
+   "hex3_02_BN3-154-E_comp_s345",
+   "hex3_02_SS2-88-F_comp_s012",
+   "hex3_02_SS2-88-F_comp_s345",
+   "hex3_04_Rock3-117-Bb_comp_s012",
+   "hex3_04_Rock3-117-Bb_comp_s345",
+   "hex3_04_SS3-98-C_comp_s012",
+   "hex3_04_SS3-98-C_comp_s345",
+   "hex3_05_BN2-131-B_comp_s012",
+   "hex3_05_BN2-131-B_comp_s345",
+   "hex3_05_Funk2-119-G_comp_s012",
+   "hex3_05_Funk2-119-G_comp_s345"
+  ]
+ },
+ "recipe": {
+  "mix2_00+13": {
+   "kind": "mix",
+   "sources": [
+    "00_BN1-129-Eb_solo",
+    "03_Funk3-112-C#_solo"
+   ]
+  },
+  "mix2_01+14": {
+   "kind": "mix",
+   "sources": [
+    "00_Funk1-97-C_solo",
+    "03_Rock1-130-A_solo"
+   ]
+  },
+  "mix2_02+15": {
+   "kind": "mix",
+   "sources": [
+    "00_Jazz2-110-Bb_solo",
+    "03_SS1-68-E_solo"
+   ]
+  },
+  "mix2_03+12": {
+   "kind": "mix",
+   "sources": [
+    "00_Rock2-85-F_solo",
+    "03_BN2-166-Ab_solo"
+   ]
+  },
+  "mix2_12+01": {
+   "kind": "mix",
+   "sources": [
+    "03_BN2-166-Ab_solo",
+    "00_Funk1-97-C_solo"
+   ]
+  },
+  "mix2_13+02": {
+   "kind": "mix",
+   "sources": [
+    "03_Funk3-112-C#_solo",
+    "00_Jazz2-110-Bb_solo"
+   ]
+  },
+  "mix2_14+03": {
+   "kind": "mix",
+   "sources": [
+    "03_Rock1-130-A_solo",
+    "00_Rock2-85-F_solo"
+   ]
+  },
+  "mix2_15+00": {
+   "kind": "mix",
+   "sources": [
+    "03_SS1-68-E_solo",
+    "00_BN1-129-Eb_solo"
+   ]
+  },
+  "mix3_00+13+02": {
+   "kind": "mix",
+   "sources": [
+    "00_BN1-129-Eb_solo",
+    "03_Funk3-112-C#_solo",
+    "00_Jazz2-110-Bb_solo"
+   ]
+  },
+  "mix3_01+14+03": {
+   "kind": "mix",
+   "sources": [
+    "00_Funk1-97-C_solo",
+    "03_Rock1-130-A_solo",
+    "00_Rock2-85-F_solo"
+   ]
+  },
+  "mix3_02+15+00": {
+   "kind": "mix",
+   "sources": [
+    "00_Jazz2-110-Bb_solo",
+    "03_SS1-68-E_solo",
+    "00_BN1-129-Eb_solo"
+   ]
+  },
+  "mix3_03+12+01": {
+   "kind": "mix",
+   "sources": [
+    "00_Rock2-85-F_solo",
+    "03_BN2-166-Ab_solo",
+    "00_Funk1-97-C_solo"
+   ]
+  },
+  "hex2_00_BN2-166-Ab_comp_s12": {
+   "kind": "hex",
+   "source": "00_BN2-166-Ab_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_00_BN2-166-Ab_comp_s34": {
+   "kind": "hex",
+   "source": "00_BN2-166-Ab_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_00_BN2-166-Ab_comp_s04": {
+   "kind": "hex",
+   "source": "00_BN2-166-Ab_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_00_BN2-166-Ab_comp_s012": {
+   "kind": "hex",
+   "source": "00_BN2-166-Ab_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_00_BN2-166-Ab_comp_s345": {
+   "kind": "hex",
+   "source": "00_BN2-166-Ab_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_00_Funk3-112-C#_comp_s12": {
+   "kind": "hex",
+   "source": "00_Funk3-112-C#_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_00_Funk3-112-C#_comp_s34": {
+   "kind": "hex",
+   "source": "00_Funk3-112-C#_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_00_Funk3-112-C#_comp_s04": {
+   "kind": "hex",
+   "source": "00_Funk3-112-C#_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_00_Funk3-112-C#_comp_s012": {
+   "kind": "hex",
+   "source": "00_Funk3-112-C#_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_00_Funk3-112-C#_comp_s345": {
+   "kind": "hex",
+   "source": "00_Funk3-112-C#_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_03_Funk1-97-C_comp_s12": {
+   "kind": "hex",
+   "source": "03_Funk1-97-C_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_03_Funk1-97-C_comp_s34": {
+   "kind": "hex",
+   "source": "03_Funk1-97-C_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_03_Funk1-97-C_comp_s04": {
+   "kind": "hex",
+   "source": "03_Funk1-97-C_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_03_Funk1-97-C_comp_s012": {
+   "kind": "hex",
+   "source": "03_Funk1-97-C_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_03_Funk1-97-C_comp_s345": {
+   "kind": "hex",
+   "source": "03_Funk1-97-C_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_03_Jazz2-110-Bb_comp_s12": {
+   "kind": "hex",
+   "source": "03_Jazz2-110-Bb_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_03_Jazz2-110-Bb_comp_s34": {
+   "kind": "hex",
+   "source": "03_Jazz2-110-Bb_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_03_Jazz2-110-Bb_comp_s04": {
+   "kind": "hex",
+   "source": "03_Jazz2-110-Bb_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_03_Jazz2-110-Bb_comp_s012": {
+   "kind": "hex",
+   "source": "03_Jazz2-110-Bb_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_03_Jazz2-110-Bb_comp_s345": {
+   "kind": "hex",
+   "source": "03_Jazz2-110-Bb_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "mix2_04+09": {
+   "kind": "mix",
+   "sources": [
+    "01_Funk2-108-Eb_solo",
+    "02_Jazz3-137-Eb_solo"
+   ]
+  },
+  "mix2_05+10": {
+   "kind": "mix",
+   "sources": [
+    "01_Jazz2-187-F#_solo",
+    "02_Rock3-148-C_solo"
+   ]
+  },
+  "mix2_06+11": {
+   "kind": "mix",
+   "sources": [
+    "01_Rock3-117-Bb_solo",
+    "02_SS1-100-C#_solo"
+   ]
+  },
+  "mix2_07+08": {
+   "kind": "mix",
+   "sources": [
+    "01_SS3-98-C_solo",
+    "02_BN2-131-B_solo"
+   ]
+  },
+  "mix2_08+17": {
+   "kind": "mix",
+   "sources": [
+    "02_BN2-131-B_solo",
+    "04_Funk3-98-A_solo"
+   ]
+  },
+  "mix2_09+18": {
+   "kind": "mix",
+   "sources": [
+    "02_Jazz3-137-Eb_solo",
+    "04_Jazz1-130-D_solo"
+   ]
+  },
+  "mix2_10+19": {
+   "kind": "mix",
+   "sources": [
+    "02_Rock3-148-C_solo",
+    "04_SS2-107-Ab_solo"
+   ]
+  },
+  "mix2_11+16": {
+   "kind": "mix",
+   "sources": [
+    "02_SS1-100-C#_solo",
+    "04_BN3-119-G_solo"
+   ]
+  },
+  "mix2_16+21": {
+   "kind": "mix",
+   "sources": [
+    "04_BN3-119-G_solo",
+    "05_Funk1-114-Ab_solo"
+   ]
+  },
+  "mix2_17+22": {
+   "kind": "mix",
+   "sources": [
+    "04_Funk3-98-A_solo",
+    "05_Jazz1-200-B_solo"
+   ]
+  },
+  "mix2_18+23": {
+   "kind": "mix",
+   "sources": [
+    "04_Jazz1-130-D_solo",
+    "05_Rock2-142-D_solo"
+   ]
+  },
+  "mix2_19+20": {
+   "kind": "mix",
+   "sources": [
+    "04_SS2-107-Ab_solo",
+    "05_BN3-154-E_solo"
+   ]
+  },
+  "mix2_20+05": {
+   "kind": "mix",
+   "sources": [
+    "05_BN3-154-E_solo",
+    "01_Jazz2-187-F#_solo"
+   ]
+  },
+  "mix2_21+06": {
+   "kind": "mix",
+   "sources": [
+    "05_Funk1-114-Ab_solo",
+    "01_Rock3-117-Bb_solo"
+   ]
+  },
+  "mix2_22+07": {
+   "kind": "mix",
+   "sources": [
+    "05_Jazz1-200-B_solo",
+    "01_SS3-98-C_solo"
+   ]
+  },
+  "mix2_23+04": {
+   "kind": "mix",
+   "sources": [
+    "05_Rock2-142-D_solo",
+    "01_Funk2-108-Eb_solo"
+   ]
+  },
+  "mix3_04+09+18": {
+   "kind": "mix",
+   "sources": [
+    "01_Funk2-108-Eb_solo",
+    "02_Jazz3-137-Eb_solo",
+    "04_Jazz1-130-D_solo"
+   ]
+  },
+  "mix3_05+10+19": {
+   "kind": "mix",
+   "sources": [
+    "01_Jazz2-187-F#_solo",
+    "02_Rock3-148-C_solo",
+    "04_SS2-107-Ab_solo"
+   ]
+  },
+  "mix3_06+11+16": {
+   "kind": "mix",
+   "sources": [
+    "01_Rock3-117-Bb_solo",
+    "02_SS1-100-C#_solo",
+    "04_BN3-119-G_solo"
+   ]
+  },
+  "mix3_07+08+17": {
+   "kind": "mix",
+   "sources": [
+    "01_SS3-98-C_solo",
+    "02_BN2-131-B_solo",
+    "04_Funk3-98-A_solo"
+   ]
+  },
+  "mix3_08+17+22": {
+   "kind": "mix",
+   "sources": [
+    "02_BN2-131-B_solo",
+    "04_Funk3-98-A_solo",
+    "05_Jazz1-200-B_solo"
+   ]
+  },
+  "mix3_09+18+23": {
+   "kind": "mix",
+   "sources": [
+    "02_Jazz3-137-Eb_solo",
+    "04_Jazz1-130-D_solo",
+    "05_Rock2-142-D_solo"
+   ]
+  },
+  "mix3_10+19+20": {
+   "kind": "mix",
+   "sources": [
+    "02_Rock3-148-C_solo",
+    "04_SS2-107-Ab_solo",
+    "05_BN3-154-E_solo"
+   ]
+  },
+  "mix3_11+16+21": {
+   "kind": "mix",
+   "sources": [
+    "02_SS1-100-C#_solo",
+    "04_BN3-119-G_solo",
+    "05_Funk1-114-Ab_solo"
+   ]
+  },
+  "hex2_01_Jazz1-130-D_comp_s12": {
+   "kind": "hex",
+   "source": "01_Jazz1-130-D_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_01_Jazz1-130-D_comp_s34": {
+   "kind": "hex",
+   "source": "01_Jazz1-130-D_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_01_Jazz1-130-D_comp_s04": {
+   "kind": "hex",
+   "source": "01_Jazz1-130-D_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_01_Jazz1-130-D_comp_s012": {
+   "kind": "hex",
+   "source": "01_Jazz1-130-D_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_01_Jazz1-130-D_comp_s345": {
+   "kind": "hex",
+   "source": "01_Jazz1-130-D_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_01_Rock1-90-C#_comp_s12": {
+   "kind": "hex",
+   "source": "01_Rock1-90-C#_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_01_Rock1-90-C#_comp_s34": {
+   "kind": "hex",
+   "source": "01_Rock1-90-C#_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_01_Rock1-90-C#_comp_s04": {
+   "kind": "hex",
+   "source": "01_Rock1-90-C#_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_01_Rock1-90-C#_comp_s012": {
+   "kind": "hex",
+   "source": "01_Rock1-90-C#_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_01_Rock1-90-C#_comp_s345": {
+   "kind": "hex",
+   "source": "01_Rock1-90-C#_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_02_BN3-154-E_comp_s12": {
+   "kind": "hex",
+   "source": "02_BN3-154-E_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_02_BN3-154-E_comp_s34": {
+   "kind": "hex",
+   "source": "02_BN3-154-E_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_02_BN3-154-E_comp_s04": {
+   "kind": "hex",
+   "source": "02_BN3-154-E_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_02_BN3-154-E_comp_s012": {
+   "kind": "hex",
+   "source": "02_BN3-154-E_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_02_BN3-154-E_comp_s345": {
+   "kind": "hex",
+   "source": "02_BN3-154-E_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_02_SS2-88-F_comp_s12": {
+   "kind": "hex",
+   "source": "02_SS2-88-F_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_02_SS2-88-F_comp_s34": {
+   "kind": "hex",
+   "source": "02_SS2-88-F_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_02_SS2-88-F_comp_s04": {
+   "kind": "hex",
+   "source": "02_SS2-88-F_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_02_SS2-88-F_comp_s012": {
+   "kind": "hex",
+   "source": "02_SS2-88-F_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_02_SS2-88-F_comp_s345": {
+   "kind": "hex",
+   "source": "02_SS2-88-F_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_04_Rock3-117-Bb_comp_s12": {
+   "kind": "hex",
+   "source": "04_Rock3-117-Bb_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_04_Rock3-117-Bb_comp_s34": {
+   "kind": "hex",
+   "source": "04_Rock3-117-Bb_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_04_Rock3-117-Bb_comp_s04": {
+   "kind": "hex",
+   "source": "04_Rock3-117-Bb_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_04_Rock3-117-Bb_comp_s012": {
+   "kind": "hex",
+   "source": "04_Rock3-117-Bb_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_04_Rock3-117-Bb_comp_s345": {
+   "kind": "hex",
+   "source": "04_Rock3-117-Bb_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_04_SS3-98-C_comp_s12": {
+   "kind": "hex",
+   "source": "04_SS3-98-C_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_04_SS3-98-C_comp_s34": {
+   "kind": "hex",
+   "source": "04_SS3-98-C_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_04_SS3-98-C_comp_s04": {
+   "kind": "hex",
+   "source": "04_SS3-98-C_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_04_SS3-98-C_comp_s012": {
+   "kind": "hex",
+   "source": "04_SS3-98-C_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_04_SS3-98-C_comp_s345": {
+   "kind": "hex",
+   "source": "04_SS3-98-C_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_05_BN2-131-B_comp_s12": {
+   "kind": "hex",
+   "source": "05_BN2-131-B_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_05_BN2-131-B_comp_s34": {
+   "kind": "hex",
+   "source": "05_BN2-131-B_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_05_BN2-131-B_comp_s04": {
+   "kind": "hex",
+   "source": "05_BN2-131-B_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_05_BN2-131-B_comp_s012": {
+   "kind": "hex",
+   "source": "05_BN2-131-B_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_05_BN2-131-B_comp_s345": {
+   "kind": "hex",
+   "source": "05_BN2-131-B_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  },
+  "hex2_05_Funk2-119-G_comp_s12": {
+   "kind": "hex",
+   "source": "05_Funk2-119-G_comp",
+   "strings": [
+    1,
+    2
+   ]
+  },
+  "hex2_05_Funk2-119-G_comp_s34": {
+   "kind": "hex",
+   "source": "05_Funk2-119-G_comp",
+   "strings": [
+    3,
+    4
+   ]
+  },
+  "hex2_05_Funk2-119-G_comp_s04": {
+   "kind": "hex",
+   "source": "05_Funk2-119-G_comp",
+   "strings": [
+    0,
+    4
+   ]
+  },
+  "hex3_05_Funk2-119-G_comp_s012": {
+   "kind": "hex",
+   "source": "05_Funk2-119-G_comp",
+   "strings": [
+    0,
+    1,
+    2
+   ]
+  },
+  "hex3_05_Funk2-119-G_comp_s345": {
+   "kind": "hex",
+   "source": "05_Funk2-119-G_comp",
+   "strings": [
+    3,
+    4,
+    5
+   ]
+  }
+ },
+ "_comment": [
+  "Split by player of the POLY bench (generated by test/poly/make_mixes.py --write-split; do not edit by hand).",
+  "DEV = players 00 and 03, TEST = players 01, 02, 04, 05; every mix is built from takes of ONE split.",
+  "mix2/mix3: solo takes of test/takes.json (names carry their indices), mixed at -26 dBFS RMS each, unit-gain sum.",
+  "hex2/hex3: 2 or 3 debleeded strings of one comp take, scaled by rms(mono mix) / rms(sum of the 6 stems).",
+  "See the docstring of make_mixes.py for the exact rule."
+ ]
+}
