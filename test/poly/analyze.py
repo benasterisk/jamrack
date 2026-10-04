@@ -5,6 +5,14 @@ notes.py turns into note events, so that the note-rule thresholds can be
 grid-searched without re-running the NMF.
 
   python3 test/poly/analyze.py --guitarset <dir> --takes <takes.json> --set solo,comp,mix2,mix3 --cache <dir> [--jobs 4]
+                               [--iter 6] [--lambda 0.02] [--windows medium,short,long]
+
+--iter and --lambda are the decomposer's iterations per hop and L1 penalty
+(defaults = the jalon 1 bis prototype, 6 / 0.02; the BASELINE of the
+improvement session is --iter 15 --lambda 400, see params-baseline.json).
+--windows limits the analysis windows (notes.py only reads medium and short).
+The settings are stored in every cache file (n_iter, lambda) and in
+<cache>/settings.json; a cache made with other settings is refused.
 
 Front-end (mirrors the plan): WAV 44.1 kHz -> polyphase decimation to 24 kHz
 (scipy resample_poly 80/147, no 3 kHz low-pass: partials up to 10 kHz) ->
@@ -29,7 +37,7 @@ the odd partials 1, 3, 5 to the even partials 2, 4, 6 (max magnitude within
 +-1 bin of each), from the same window's spectrum.
 
 Cache (npz): P_<win> (T x 44), noise_<win> (T x 2), odd_<win> and low_<win> (T x 44),
-level (T), flux (T), hop_s, midi (44), plus the NMF time per hop.
+level (T), flux (T), hop_s, midi (44), n_iter, lambda, plus the NMF time per hop.
 """
 import argparse
 import json
@@ -101,7 +109,7 @@ def odd_even(V, midis):
 def refresh_features(args):
     """Recomputes the spectrum-only features of a cached take (no NMF)."""
     import soundfile as sf
-    take, wav, cache = args
+    take, wav, cache = args[:3]
     dst = os.path.join(cache, take + '.npz')
     z = dict(np.load(dst))
     x, sr = sf.read(wav, dtype='float64', always_2d=True)
@@ -109,21 +117,24 @@ def refresh_features(args):
     if sr != T.SR:
         g = np.gcd(sr, T.SR)
         x = resample_poly(x, T.SR // g, sr // g)
-    for win in T.WINDOWS:
+    for win in [w for w in T.WINDOWS if 'P_' + w in z]:
         V = spectra(x, win)
         z['odd_' + win], z['low_' + win] = partial_features(V, PITCHES)
     np.savez(dst, **z)
     return take, 'features refreshed'
 
 
-def nmf_run(V, W, meta):
+def nmf_run(V, W, meta, n_iter=N_ITER, lam=LAMBDA):
     """Sequential sparse beta-NMF over the hops of one window. Returns
     (H (T x K) float32, seconds per hop).
 
     lambda: the L1 penalty is applied in the units of the multiplicative
     update's denominator W^T (Wh)^(beta-1); with |V| in amplitude units
     (full-scale sine -> 1) that denominator is ~1-30 for the levels of
-    GuitarSet (-20..-50 dBFS), so lambda = 0.02 is a mild sparsity push."""
+    GuitarSet (-20..-50 dBFS), so lambda = 0.02 is a mild sparsity push.
+    The baseline's lambda = 400 is a strong one: a template whose own
+    partials do not explain the spectrum is driven to the floor, and the
+    activations shrink by ~10x (hence the lower abs_on of notes.py)."""
     Tn, K = V.shape[0], W.shape[1]
     H = np.zeros((Tn, K), dtype=np.float32)
     h = np.zeros(K)
@@ -146,10 +157,10 @@ def nmf_run(V, W, meta):
         Wa = W64[:, act]
         Wat = Wt[act]
         ha = np.maximum(h[act], max(INIT_SAL, 1e-4) * sal[act] if INIT_SAL > 0 else 1e-4 * max(v.max(), 1e-6))
-        for _ in range(N_ITER):
+        for _ in range(n_iter):
             y = Wa @ ha + EPS
             num = Wat @ (v * y ** (BETA - 2))
-            den = Wat @ (y ** (BETA - 1)) + LAMBDA
+            den = Wat @ (y ** (BETA - 1)) + lam
             ha *= num / den
         h[:] = 0
         h[act] = ha
@@ -157,7 +168,7 @@ def nmf_run(V, W, meta):
     return H, (time.perf_counter() - t0) / max(Tn, 1)
 
 
-def analyze_take(wav_path):
+def analyze_take(wav_path, n_iter=N_ITER, lam=LAMBDA, windows=tuple(T.WINDOWS)):
     import soundfile as sf
     x, sr = sf.read(wav_path, dtype='float64', always_2d=True)
     x = x[:, 0]
@@ -166,8 +177,9 @@ def analyze_take(wav_path):
         x = resample_poly(x, T.SR // g, sr // g)
     K = len(x) // HOP
     level = 20 * np.log10(np.sqrt(np.mean(x[:K * HOP].reshape(K, HOP) ** 2, axis=1)) + 1e-9).astype(np.float32)
-    out = {'level': level, 'hop_s': HOP / T.SR, 'midi': PITCHES, 'duration': len(x) / T.SR}
-    for win in T.WINDOWS:
+    out = {'level': level, 'hop_s': HOP / T.SR, 'midi': PITCHES, 'duration': len(x) / T.SR,
+           'n_iter': n_iter, 'lambda': lam}
+    for win in windows:
         W, meta, _ = T.build(win)
         V = spectra(x, win)
         if win == 'short':
@@ -175,7 +187,7 @@ def analyze_take(wav_path):
             d = np.zeros(K, dtype=np.float32)
             d[FLUX_LAG:] = np.minimum(np.maximum(dB[FLUX_LAG:] - dB[:-FLUX_LAG], 0), 20).mean(axis=1)
             out['flux'] = d
-        H, per_hop = nmf_run(V, W, meta)
+        H, per_hop = nmf_run(V, W, meta, n_iter, lam)
         midi_of = np.array([m['midi'] for m in meta])
         P = np.zeros((K, len(PITCHES)), dtype=np.float32)
         for j, m in enumerate(PITCHES):
@@ -188,14 +200,18 @@ def analyze_take(wav_path):
 
 
 def _job(args):
-    take, wav, cache = args
+    take, wav, cache, n_iter, lam, windows = args
     dst = os.path.join(cache, take + '.npz')
     if os.path.exists(dst):
+        z = np.load(dst)
+        if 'n_iter' in z.files and (int(z['n_iter']) != n_iter or float(z['lambda']) != lam):
+            return take, f"ERROR: cached with --iter {int(z['n_iter'])} --lambda {float(z['lambda'])}, not {n_iter} / {lam}"
         return take, None
     t0 = time.perf_counter()
-    r = analyze_take(wav)
+    r = analyze_take(wav, n_iter, lam, windows)
     np.savez(dst, **r)
-    return take, f"{r['duration']:.1f} s audio in {time.perf_counter() - t0:.1f} s; NMF {1e3 * r['nmf_s_per_hop_medium']:.3f} ms/hop medium, {1e3 * r['nmf_s_per_hop_short']:.3f} ms/hop short"
+    return take, f"{r['duration']:.1f} s audio in {time.perf_counter() - t0:.1f} s; NMF " + ', '.join(
+        f"{1e3 * r['nmf_s_per_hop_' + w]:.3f} ms/hop {w}" for w in windows)
 
 
 def main():
@@ -206,10 +222,24 @@ def main():
     ap.add_argument('--cache', required=True)
     ap.add_argument('--jobs', type=int, default=4)
     ap.add_argument('--refresh-features', action='store_true', help='only recompute the spectral features of existing caches')
+    ap.add_argument('--iter', type=int, default=N_ITER, help=f'NMF iterations per hop (default {N_ITER})')
+    ap.add_argument('--lambda', dest='lam', type=float, default=LAMBDA, help=f'L1 penalty (default {LAMBDA})')
+    ap.add_argument('--windows', default=','.join(T.WINDOWS), help=f'analysis windows (default {",".join(T.WINDOWS)})')
     a = ap.parse_args()
     os.makedirs(a.cache, exist_ok=True)
+    windows = tuple(a.windows.split(','))
+    settings = {'n_iter': a.iter, 'lambda': a.lam, 'windows': list(windows), 'beta': BETA, 'active_max': ACTIVE_MAX}
+    spath = os.path.join(a.cache, 'settings.json')
+    if os.path.exists(spath):
+        old = json.load(open(spath))
+        if old != settings:
+            raise SystemExit(f'{spath} holds {old}, not {settings}: use another --cache')
+    else:
+        with open(spath, 'w') as f:
+            json.dump(settings, f, indent=1)
+    print(f'settings: {settings}', flush=True)
     lists = json.load(open(a.takes))
-    jobs = [(t, os.path.join(a.guitarset, 'audio_mono-pickup_mix', t + '_mix.wav'), a.cache)
+    jobs = [(t, os.path.join(a.guitarset, 'audio_mono-pickup_mix', t + '_mix.wav'), a.cache, a.iter, a.lam, windows)
             for s in a.set.split(',') for t in lists[s]]
     from multiprocessing import Pool
     with Pool(a.jobs) as pool:

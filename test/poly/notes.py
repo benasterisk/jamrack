@@ -6,6 +6,17 @@ DEV subset of a takes.json produced by make_mixes.py.
 
   python3 test/poly/notes.py events --cache <dir> --takes <takes.json> --set mix2 --out events-poly-mix2.json [--params p.json]
   python3 test/poly/notes.py grid   --cache <dir> --takes <takes.json> --guitarset <mixdir> --out best.json [--jobs 4]
+                                    [--params base.json] [--space space.json]
+
+Thresholds come from a JSON file (--params): either a flat dict of the keys
+of DEFAULT below, or a dict with a "best" entry holding them (the output of
+`grid`, and test/poly/params-baseline.json); keys starting with "_" are
+comments and ignored; missing keys keep DEFAULT. `grid` starts from
+--params (or DEFAULT) and varies the keys of --space (a JSON dict
+key -> list of values; the built-in space below otherwise), scoring every
+combination on the dev_<set> lists of --takes (the split by player of
+test/poly/split.json) with the objective "mean F1 +-50 ms over the dev
+sets"; it never reads a test_<set> list.
 
 Rules (docs/polyphonic-plan.md, section 3, "logique de notes"):
   onset   = log-spectral flux >= flux_thr AND the level rose >= rise_db over
@@ -173,6 +184,19 @@ def build_events(cache, takes, p, label='poly', set_name=None):
     return out
 
 
+def load_params(path=None):
+    """DEFAULT updated by the JSON file (flat dict or {"best": dict}; "_" keys ignored)."""
+    p = dict(DEFAULT)
+    if path:
+        d = json.load(open(path))
+        d = d.get('best', d)
+        unknown = [k for k in d if not k.startswith('_') and k not in DEFAULT]
+        if unknown:
+            raise SystemExit(f'{path}: unknown thresholds {unknown}')
+        p.update({k: v for k, v in d.items() if not k.startswith('_')})
+    return p
+
+
 # ------------------------------------------------------------------ grid
 def _f1(ev, refs):
     import score
@@ -203,13 +227,17 @@ def grid(a):
     sets = {k: lists['dev_' + k] for k in ('solo', 'comp', 'mix2', 'mix3', 'hex2', 'hex3') if 'dev_' + k in lists}
     all_takes = sorted({t for v in sets.values() for t in v})
     caches = {t: load_cache(a.cache, t) for t in all_takes}
+    spath = os.path.join(a.cache, 'settings.json')
+    settings = json.load(open(spath)) if os.path.exists(spath) else None
     refs = {t: score.read_jams_notes(os.path.join(a.guitarset, 'annotation', t + '.jams')) for t in all_takes}
     space = json.load(open(a.space)) if a.space else {
         'abs_on': [0.01, 0.02, 0.04], 'frac': [0.12, 0.16, 0.22], 'rise_x': [2.0], 'flux_thr': [2.0], 'release_db': [20.0],
         'oct_up': [0.5], 'agree': [2, 4], 'min_delay': [0, 4], 'low_guard': [0.0, 0.3], 'harm_up': [0.0, 1.0]}
+    base = load_params(a.params)
+    space = space.get('space', space)        # a grid output / params-baseline.json carries its space
     keys = list(space)
-    combos = [dict(DEFAULT, **dict(zip(keys, vals))) for vals in itertools.product(*[space[k] for k in keys])]
-    print(f'{len(combos)} combinations x {len(all_takes)} dev takes', file=sys.stderr)
+    combos = [dict(base, **dict(zip(keys, vals))) for vals in itertools.product(*[space[k] for k in keys])]
+    print(f'{len(combos)} combinations x {len(all_takes)} dev takes ({", ".join(f"{k} {len(v)}" for k, v in sets.items())})', file=sys.stderr)
     from multiprocessing import Pool
     rows = []
     with Pool(a.jobs) as pool:
@@ -222,7 +250,9 @@ def grid(a):
     for obj, p, res in rows[:15]:
         print(f"{obj:.3f}  " + ' '.join(f"{k}={res[k][2]:.3f}" for k in sets) + '  ' + ' '.join(f'{k}={p[k]}' for k in keys))
     with open(a.out, 'w') as f:
-        json.dump({'best': rows[0][1], 'objective': 'mean F1 +-50 ms over the dev lists ' + '/'.join(sets), 'space': space,
+        json.dump({'best': rows[0][1], 'objective': 'mean F1 +-50 ms over the dev lists ' + '/'.join(sets),
+                   'dev_takes': {k: len(v) for k, v in sets.items()}, 'space': space, 'base': base,
+                   'cache_settings': settings,
                    'top': [{'objective': o, 'params': p, 'f1': res} for o, p, res in rows[:30]]}, f, indent=1)
 
 
@@ -236,16 +266,13 @@ def main():
     ap.add_argument('--params', help='JSON file with the thresholds (grid output or a dict)')
     ap.add_argument('--label', default='poly')
     ap.add_argument('--guitarset')
-    ap.add_argument('--space', help='JSON grid space')
+    ap.add_argument('--space', help='JSON grid space: {key: [values]}, or a file with a "space" entry')
     ap.add_argument('--jobs', type=int, default=4)
     a = ap.parse_args()
     if a.cmd == 'grid':
         grid(a)
         return
-    p = dict(DEFAULT)
-    if a.params:
-        d = json.load(open(a.params))
-        p.update(d.get('best', d))
+    p = load_params(a.params)
     lists = json.load(open(a.takes))
     ev = build_events(a.cache, lists[a.set], p, a.label, a.set)
     with open(a.out, 'w') as f:
