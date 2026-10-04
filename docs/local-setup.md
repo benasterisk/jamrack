@@ -38,7 +38,7 @@ plus lents.
 
 ```bash
 cd D:/Jamrack            # ou : git clone https://github.com/benasterisk/jamrack.git
-git fetch origin && git checkout feature/guitar-to-midi && git pull
+git fetch origin && git checkout feature/poly && git pull
 node --version && python3 --version
 pip3 install --user numpy scipy soundfile mir_eval
 # optionnel, pour la ligne de référence hors ligne (TensorFlow/ONNX, ~1 Go) :
@@ -59,16 +59,14 @@ python3 test/score.py --guitarset D:/guitarset mono-solo.json         # tableau 
 
 ## Reprendre le plan polyphonique
 
-`CLAUDE.md` résume l'état et la décision en attente ; `docs/polyphonic-plan.md`
-section 13 donne les chiffres vérifiés et le diagnostic (la règle de note est
-la limite, pas le décomposeur) ; `test/poly/README.md` explique comment
-rejouer la configuration retenue (`test/poly/params-merged.json`) et la
-porte (`test/poly/gate.py`). Trois suites possibles, au choix du
-propriétaire : une session de plus sur la règle de note, la construction du
-moteur temps réel avec un périmètre honnête (recommandé), ou l'arrêt. Dans
-une session Claude Code locale, le mot-clé `ultracode` active
-l'orchestration multi-agents ; demander simplement « option N, reprends
-docs/polyphonic-plan.md » et consigner la décision en section 14.
+`CLAUDE.md` résume l'état ; `docs/polyphonic-plan.md` section 13 donne les
+chiffres vérifiés et le diagnostic, section 14 la décision du propriétaire
+(option 2 : moteur temps réel à périmètre honnête, branche `feature/poly`)
+et ses quatre jalons ; `test/poly/README.md` explique comment rejouer la
+configuration retenue (`test/poly/params-merged.json`) et la porte
+(`test/poly/gate.py`). Dans une session Claude Code locale, le mot-clé
+`ultracode` active l'orchestration multi-agents ; demander simplement
+« reprends le jalon suivant de docs/polyphonic-plan.md §14 ».
 
 ## Ce qui ne se transfère pas
 

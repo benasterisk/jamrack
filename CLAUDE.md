@@ -24,19 +24,19 @@ aux changements de session. Détails : `docs/local-setup.md`.
 
 ## Branches
 
-- `main` : site public jamrack.openmindlab.fr. **Ne contient pas encore** le
-  travail guitare/looper (23 commits de retard sur la branche feature). Pas de
-  PR ouverte : la demander au propriétaire avant d'en créer une.
-- `feature/guitar-to-midi` : branche de travail, tout ce qui suit. Toujours
-  commiter et pousser ici (`git push -u origin feature/guitar-to-midi`).
+- `main` : site public jamrack.openmindlab.fr. Contient **tout** le travail
+  guitare/looper depuis la fusion de la PR #1 (`52b6cc8`, 5 octobre 2026).
+  Les fusions vers `main` passent par une PR.
+- `feature/poly` : branche de travail de l'option 2 (moteur POLY temps réel).
+  Toujours commiter et pousser ici (`git push -u origin feature/poly`).
+- `feature/guitar-to-midi` : fusionnée dans `main` par la PR #1 ; ne plus y
+  commiter.
 - `gh-pages` : page de test HTTPS https://benasterisk.github.io/jamrack/
-  (micro autorisé, contrairement aux artefacts). Dernière fusion de la
-  branche feature : `bdfdee6` (looper + tracker réglé ; les commits suivants
-  ne touchent que docs et tests). Rafraîchir : `git checkout gh-pages &&
-  git merge feature/guitar-to-midi && git push && git checkout
-  feature/guitar-to-midi`.
+  (micro autorisé, contrairement aux artefacts). Synchronisée avec `main` au
+  commit `52b6cc8`. Rafraîchir : `git checkout gh-pages && git merge main &&
+  git push && git checkout -`.
 
-## Livré sur `feature/guitar-to-midi`
+## Livré (sur `main`)
 
 - **GUITARE → MIDI monophonique temps réel** : `js/audio/guitar/tracker.js`
   (DSP pur, constantes réglables dans `TUNING`), `worklet.js` (AudioWorklet
@@ -76,18 +76,17 @@ aux changements de session. Détails : `docs/local-setup.md`.
   de doubles reçoivent une activation suffisante).
 - **Rien de POLY n'est dans l'application** (`js/`) : ni sélecteur, ni
   moteur JS, ni assistant.
-- **Décision en attente du propriétaire** (à consigner en plan §14) :
-  1. une session de plus sur la règle de note pour passer la porte, en local
-     avec `ultracode` ;
-  2. **(recommandé)** construire le moteur POLY temps réel maintenant avec un
-     périmètre honnête : POLY « bêta » derrière le sélecteur, MONO par
-     défaut, « notes seules mieux que MONO, doubles et triades au mieux » ;
-  3. arrêter POLY.
-- Si option 2, jalons 2/3 du plan : bend par note ; `state.guitar.mode` +
-  sélecteur ; portage JS de la configuration fusionnée dans le worklet
-  (`fft.js`, `templates.js`, NMF β 0,5, 60 gabarits actifs, 15 itérations,
-  λ 400 ; coût numpy 1,17 ms par hop, **à mesurer en JS**, budget 2,67 ms) ;
-  assistant de calibration ; affichage CPU/TRK ; i18n.
+- **Décision prise le 5 octobre (plan §14) : option 2.** Construire le
+  moteur POLY temps réel maintenant avec un périmètre honnête : POLY
+  « bêta » derrière le sélecteur, MONO par défaut, « notes seules mieux que
+  MONO, doubles et triades au mieux ». Travail sur la branche `feature/poly`,
+  PR vers `main` quand la bêta est utilisable.
+- Jalons (plan §14) : 1. portage JS de la configuration fusionnée dans le
+  worklet (`fft.js`, `templates.js`, NMF β 0,5, 60 gabarits actifs,
+  15 itérations, λ 400 ; coût numpy 1,17 ms par hop, **à mesurer en JS**,
+  budget 2,67 ms) avec équivalence Python ↔ JS ; 2. intégration
+  (`state.guitar.mode` + sélecteur, bend par note, CPU/TRK, i18n) ;
+  3. assistant de calibration ; 4. vérification puis PR.
 
 ## Conventions et pièges
 

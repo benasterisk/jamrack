@@ -482,3 +482,37 @@ honnêtement aujourd'hui : notes seules aussi bien ou mieux que MONO avec
 presque aucune note fantôme ; deux lignes superposées à 79 % ; accords
 grattés avec la moitié des notes à 85 % de précision. Le périmètre et la
 suite sont à décider avec le propriétaire (section 14 à écrire).
+
+## 14. Décision du propriétaire (5 octobre) : option 2, moteur temps réel à périmètre honnête
+
+Le propriétaire a choisi de construire le moteur POLY temps réel maintenant,
+sans attendre que la porte de la section 12 soit passée. Périmètre annoncé :
+
+- POLY est une **bêta** derrière le sélecteur MONO / POLY de la carte
+  guitare ; MONO reste le mode par défaut.
+- Ce que POLY promet : notes seules aussi bien ou mieux que MONO, presque
+  aucune note fantôme ; deux lignes superposées et accords grattés « au
+  mieux » (chiffres de la section 13 comme référence, à retrouver dans le
+  navigateur).
+- Banque générique dérivée des données (`fitatt`) pour tout visiteur ;
+  assistant de calibration optionnel, profil conservé par défaut.
+- La règle de note orientée rappel (section 13) reste une amélioration
+  possible, à mener sur le prototype hors ligne puis à reporter dans le
+  moteur JS ; elle n'est pas un prérequis.
+
+Jalons (branche `feature/poly`, PR vers `main` quand la bêta est utilisable) :
+
+1. **Portage JS** de la configuration fusionnée (`test/poly/params-merged.json`) :
+   front-end (24 kHz, hop 64, fenêtre 43 ms, FFT 2048), banque de gabarits
+   générée dans le navigateur à partir des profils mesurés, NMF β 0,5 à
+   ensemble actif, règle de note par hop. Mesure du coût par hop en JS
+   (budget 2,67 ms) et équivalence avec le prototype Python sur les mêmes
+   prises (mêmes événements à la tolérance près).
+2. **Intégration** : `state.guitar.mode`, sélecteur MONO / POLY, worklet qui
+   bascule de moteur, bend par note (`routeNoteBend`), affichage CPU / TRK,
+   i18n 12 langues, manuel.
+3. **Assistant de calibration** : mesure du profil de partiels et de
+   l'inharmonicité par corde, profil sauvegardé par défaut (IndexedDB,
+   profils nommés, export / import), choix « générique » toujours disponible.
+4. **Vérification** : tests Node du moteur, évaluation GuitarSet via le
+   moteur JS, essai en vrai navigateur, revue adversariale ; puis PR.
