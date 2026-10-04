@@ -326,6 +326,7 @@ const rack = createRack(document.getElementById('rack'), {
     if (audio) audio.allNotesOff();
     loadSound(inst); // ensureAudio -> applySettings picks the new make-up gain
     emit('params');
+    rack.refreshLooperSources();   // the SOURCE menu names the module by its sound
   },
   refreshRouting,
   audioCtx: engine.ctx,
@@ -412,9 +413,6 @@ const rack = createRack(document.getElementById('rack'), {
   looperSync: () => applyLooperSync(),
   looperMax: sec => looper.setMaxSeconds(sec),
   looperMonitor: v => looper.setMonitor(v),
-  looperStatusText: () => looperShown.text,
-  looperStatusErr: () => looperShown.isErr,
-  looperRunning: () => looperState.running,
   looperSources() {
     const engineLabel = { bank: 'engineBank', analog: 'engineAnalog', sfz: 'engineSfz', sampler: 'engineSampler' };
     const soundName = inst => {
@@ -473,20 +471,13 @@ function guitarStatusText(st) {
 // The engine lives in an AudioWorklet (js/audio/looper/); here we only turn
 // state.looper into engine calls and relay what it reports to the card.
 
-const looperState = { running: false };
 // What the card shows. Kept apart from looper.status because a failed source
 // falls back to the rack (status 'ready') while the message must stay.
 const looperShown = { st: { key: 'off', detail: '' }, text: '', isErr: false };
 
 const looper = createLooper(engine, {
-  meter(m) {
-    looperState.running = m.running;
-    rack.setLooperMeter(m, looper.latency());
-  },
-  events(list) {
-    for (const ev of list) if (ev.t === 'transport') looperState.running = ev.running;
-    rack.setLooperEvents(list);
-  },
+  meter: m => rack.setLooperMeter(m, looper.latency()),
+  events: list => rack.setLooperEvents(list),
   status: st => showLooperStatus(st),
 }, {
   maxSeconds: state.looper.maxSeconds,
@@ -524,9 +515,17 @@ function applyLooperParams() {
  * Points the engine at state.looper.source: 'rack', 'input' (the device the
  * GUITAR section chose) or a module id. A module that no longer exists, or an
  * input that cannot be opened, falls back to the rack — keeping the message
- * that says why, and the menu in step.
+ * that says why, and the menu in step. Calls run one at a time: an INPUT
+ * permission prompt can stay up for seconds, and a RACK pick meanwhile must
+ * not race it (both sources would end up summed into the worklet).
  */
-async function applyLooperSource() {
+let looperSourceChain = Promise.resolve(false);
+function applyLooperSource() {
+  looperSourceChain = looperSourceChain.catch(() => false).then(applyLooperSourceNow);
+  return looperSourceChain;
+}
+
+async function applyLooperSourceNow() {
   const L = state.looper;
   let src = null, why = null;
   if (L.source === 'input') src = { kind: 'input', deviceId: state.guitar.deviceId };
@@ -562,7 +561,8 @@ const looperReady = looper.init().then(async ok => {
 async function looperGesture() {
   await engine.resume();
   if (!(await looperReady)) return false;
-  if (state.looper.source === 'input' && looper.source.kind !== 'input') await applyLooperSource();
+  // the input opens on the first gesture, and again after its device went away
+  if (state.looper.source === 'input' && !looper.inputOpen) await applyLooperSource();
   // "that module is gone" has been read by now: back to the live status
   if (looperShown.st.key === 'noModule') showLooperStatus(looper.status);
   return true;

@@ -60,3 +60,24 @@ export function el(html) {
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
+
+// iOS: opening the microphone flips the system audio session to "play and
+// record", which by default treats the page like a phone call (earpiece,
+// lowered volume). The Audio Session API (iOS 17+) lets the page state its
+// intent explicitly; it is the only lever a web page has over the output
+// route. Harmless elsewhere. The guitar input and the looper's audio input
+// share it, so the route only goes back to 'auto' once the last capture
+// closes (each caller names itself: closing twice is harmless).
+const captures = new Set();
+function setAudioSession(type) {
+  try {
+    if (navigator.audioSession && 'type' in navigator.audioSession) navigator.audioSession.type = type;
+  } catch { /* not supported */ }
+}
+export function captureOpened(who) {
+  if (!captures.size) setAudioSession('play-and-record');
+  captures.add(who);
+}
+export function captureClosed(who) {
+  if (captures.delete(who) && !captures.size) setAudioSession('auto');
+}

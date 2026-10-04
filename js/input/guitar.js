@@ -14,6 +14,7 @@
 // biggest chunk, the rest needs ASIO/CoreAudio from a native helper.
 
 import { GuitarTracker } from '../audio/guitar/tracker.js';
+import { captureOpened, captureClosed } from '../util.js';
 
 const WORKLET_URL = new URL('../audio/guitar/worklet.js', import.meta.url);
 
@@ -78,12 +79,9 @@ export function createGuitarInput(ctx, handlers) {
       return false;
     }
     try {
-      // iOS: opening the microphone flips the system audio session to
-      // "play and record", which by default treats the page like a phone
-      // call (earpiece, lowered volume). The Audio Session API (iOS 17+)
-      // lets the page state its intent explicitly; it is the only lever a
-      // web page has over the output route. Harmless elsewhere.
-      setAudioSession('play-and-record');
+      // iOS: state the intent before the microphone opens, or the page is
+      // routed like a phone call (see captureOpened in util.js)
+      captureOpened('guitar');
       // Raw audio: the three "smart" processors add 10-20 ms and mangle an
       // instrument signal; a 0 latency hint asks the OS for its smallest input buffer.
       const audio = {
@@ -154,12 +152,6 @@ export function createGuitarInput(ctx, handlers) {
     return d ? d.label : '';
   }
 
-  function setAudioSession(type) {
-    try {
-      if (navigator.audioSession && 'type' in navigator.audioSession) navigator.audioSession.type = type;
-    } catch { /* not supported */ }
-  }
-
   function teardown() {
     try { if (node) node.disconnect(); } catch { /* already gone */ }
     try { if (gainNode) gainNode.disconnect(); } catch { /* already gone */ }
@@ -170,7 +162,7 @@ export function createGuitarInput(ctx, handlers) {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = src = gainNode = node = mute = null;
     fallback = null;
-    setAudioSession('auto');
+    captureClosed('guitar');
   }
 
   function stop() {

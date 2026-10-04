@@ -363,7 +363,12 @@ export function createRack(container, api) {
     // --- header ---
     lp.play.addEventListener('click', () => api.looperPlay());
     root.querySelector('.lp-stop').addEventListener('click', () => api.looperStop());
-    lp.undo.addEventListener('click', () => api.looperUndo(lpLast.toggled));
+    lp.undo.addEventListener('click', () => {
+      // the last track touched may have no layer yet (REC just pressed):
+      // then undo the most recent track that has one, never a silent no-op
+      const i = lp.tracks[lpLast.toggled].undo ? lpLast.toggled : lp.tracks.findIndex(tr => tr.undo);
+      if (i >= 0) api.looperUndo(i);
+    });
     root.querySelector('.lp-clearall').addEventListener('click', () => {
       const any = lp.tracks.some(tr => tr.has);
       if (any && !confirm(t('lpConfirmClearAll'))) return;
@@ -417,7 +422,7 @@ export function createRack(container, api) {
     const p = state.looper.tracks[i];
     const strip = el(`<div class="lp-track" data-i="${i}">
       <span class="lp-num">${i + 1}</span>
-      <button class="tb-btn led-btn lp-rec" title="${esc(t('lpTitleRec'))}"><span class="led"></span><span class="lp-mode">${esc(t('lpRec'))}</span></button>
+      <button class="tb-btn led-btn lp-rec" title="${esc(t('lpTitleTrack'))}"><span class="led"></span><span class="lp-mode">${esc(t('lpRec'))}</span></button>
       <div class="lp-sq">
         <button class="sq-btn lp-mute ${p.mute ? 'active-amber' : ''}" title="${esc(t('lpTitleMute'))}">${esc(t('lpMute'))}</button>
         <button class="sq-btn lp-solo ${p.solo ? 'active-teal' : ''}" title="${esc(t('lpTitleSolo'))}">${esc(t('lpSolo'))}</button>
@@ -464,19 +469,14 @@ export function createRack(container, api) {
     });
 
     const knobs = strip.querySelector('.lp-knobs');
+    const knob = (opts, title) => { const k = createKnob({ small: true, ...opts }).el; k.title = t(title); return k; };
     knobs.append(
-      createKnob({ small: true, label: t('lpLevel'), value: p.vol, def: 0.8, format: fmtPct,
-        onInput: v => set({ vol: v }) }).el,
-      createKnob({ small: true, label: t('lpPan'), value: p.pan, min: -1, max: 1, def: 0, format: fmtPan,
-        onInput: v => set({ pan: v }) }).el,
-      createKnob({ small: true, label: t('lpCut'), value: p.cutoff, def: 1,
-        format: v => fmtHz(40 * Math.pow(450, v)), onInput: v => set({ cutoff: v }) }).el,
-      createKnob({ small: true, label: t('lpRev'), value: p.rev, def: 0, format: fmtPct,
-        onInput: v => set({ rev: v }) }).el,
-      createKnob({ small: true, label: t('lpDel'), value: p.del, def: 0, format: fmtPct,
-        onInput: v => set({ del: v }) }).el,
-      createKnob({ small: true, label: t('lpFb'), value: p.feedback, def: 1, format: fmtPct,
-        onInput: v => set({ feedback: v }) }).el,
+      knob({ label: t('lpLevel'), value: p.vol, def: 0.8, format: fmtPct, onInput: v => set({ vol: v }) }, 'lpTitleLevel'),
+      knob({ label: t('lpPan'), value: p.pan, min: -1, max: 1, def: 0, format: fmtPan, onInput: v => set({ pan: v }) }, 'lpTitlePan'),
+      knob({ label: t('lpCut'), value: p.cutoff, def: 1, format: v => fmtHz(40 * Math.pow(450, v)), onInput: v => set({ cutoff: v }) }, 'lpTitleCut'),
+      knob({ label: t('lpRev'), value: p.rev, def: 0, format: fmtPct, onInput: v => set({ rev: v }) }, 'lpTitleRev'),
+      knob({ label: t('lpDel'), value: p.del, def: 0, format: fmtPct, onInput: v => set({ del: v }) }, 'lpTitleDel'),
+      knob({ label: t('lpFb'), value: p.feedback, def: 1, format: fmtPct, onInput: v => set({ feedback: v }) }, 'lpTitleFb'),
     );
 
     const togs = strip.querySelector('.lp-togs');

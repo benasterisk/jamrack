@@ -25,18 +25,26 @@
 //     first loop (nothing to play along to yet) is only shifted by the input
 //     latency
 //
+// Audio-thread discipline: process() has a 2.7 ms budget per 128-frame block
+// at 48 kHz, so nothing in here walks a whole loop at once, and nothing is
+// allocated or freed inside the sample loop (large buffers churn the GC).
+// The first recording writes into one buffer of MAX LENGTH, allocated when
+// it starts (the OS maps its pages as they are touched), and the loop is a
+// view on it at close: no copy, only the overrun is added onto the start.
+// The undo layer builds itself while a pass runs (see _startUndo).
+//
 // Memory: a 5-minute stereo loop is 115 MB per track (float32), twice that
-// with an undo layer. The host chooses maxSeconds per device.
+// with an undo layer; the first track holds MAX LENGTH worth whatever its
+// loop length. The host chooses maxSeconds per device.
 
 export const TRACKS = 6;
-const CHUNK_SECONDS = 5;          // growth step while the first loop records
 const MIN_LOOP_SECONDS = 0.1;
+const UNDO_FILL = 1 << 14;        // frames of undo layer copied per block (64 KB per channel)
 
 export class LooperCore {
   constructor(sampleRate, { maxSeconds = 300 } = {}) {
     this.sr = sampleRate;
     this.maxFrames = Math.round(maxSeconds * sampleRate);
-    this.chunk = Math.round(CHUNK_SECONDS * sampleRate);
     this.length = 0;               // frames; 0 = no loop yet
     this.pos = 0;                  // play head, 0..length-1
     this.running = false;
@@ -52,8 +60,10 @@ export class LooperCore {
         mode: 'idle',              // 'idle' | 'rec' | 'dub' | 'play'
         has: false,
         L: null, R: null,
-        chunksL: [], chunksR: [], stored: 0,   // first-loop growth storage
+        storeL: null, storeR: null, stored: 0,  // first-loop storage (MAX LENGTH + input latency)
         undoL: null, undoR: null, undoValid: false,
+        undoBuilding: false,       // the undo layer is still being completed (see _startUndo)
+        undoStart: 0, undoFilled: 0,
         writing: 'none',           // 'none' | 'over' | 'dub' — what the recorder does
         written: 0,                // frames written in the current pass
         tail: 0,                   // frames still to write after the pass ended (latency)
@@ -63,6 +73,7 @@ export class LooperCore {
       });
     }
     this.inputRms = 0;
+    this._sq = new Float64Array(TRACKS);
     this._events = [];
   }
 
@@ -95,6 +106,7 @@ export class LooperCore {
       this._startFirst(i);
       return;
     }
+    if (!this.running) { this.running = true; this.pos = 0; }
     if (t.mode === 'rec' || t.mode === 'dub') {
       this._endPass(t, 'play');
     } else if (t.has) {
@@ -102,7 +114,6 @@ export class LooperCore {
     } else {
       this._startRec(t);
     }
-    if (!this.running) { this.running = true; this.pos = 0; }
     this._emitTrack(i);
   }
 
@@ -115,11 +126,15 @@ export class LooperCore {
   }
 
   stop() {
+    // Stopped first: a first loop that closes now (or once its last frames
+    // arrive) must land in PLAY, not start an overdub on a frozen head.
+    this.running = false;
     if (this.firstTrack >= 0) { this._requestClose(); }
     this.tracks.forEach((t, i) => {
-      if (t.mode === 'rec' || t.mode === 'dub') { this._endPass(t, 'play'); this._emitTrack(i); }
+      // The head no longer moves, so the latency tail has nowhere to go:
+      // flushing it would pile every late sample onto one frame.
+      if (t.mode === 'rec' || t.mode === 'dub') { this._dropPass(t); this._emitTrack(i); }
     });
-    this.running = false;
     this._emit({ t: 'transport', running: false });
   }
 
@@ -127,8 +142,8 @@ export class LooperCore {
     const t = this.tracks[i];
     if (!t) return;
     if (this.firstTrack === i) { this.firstTrack = -1; this.pendingLength = 0; }
-    Object.assign(t, { mode: 'idle', has: false, L: null, R: null, chunksL: [], chunksR: [], stored: 0,
-      undoL: null, undoR: null, undoValid: false, writing: 'none', written: 0, tail: 0, rms: 0 });
+    Object.assign(t, { mode: 'idle', has: false, L: null, R: null, storeL: null, storeR: null, stored: 0,
+      undoL: null, undoR: null, undoValid: false, undoBuilding: false, writing: 'none', written: 0, tail: 0, rms: 0 });
     if (!this.tracks.some(x => x.has) && this.firstTrack < 0) {
       this.length = 0; this.pos = 0; this.running = false;
       this._emit({ t: 'length', length: 0 });
@@ -152,9 +167,18 @@ export class LooperCore {
   _emit(e) { this._events.push(e); }
   _emitTrack(i) { const t = this.tracks[i]; this._emit({ t: 'track', i, mode: t.mode, has: t.has, undo: t.undoValid }); }
 
+  /** Where the next input sample is written: `writeLat` frames behind the play head. */
+  _writeHead() {
+    const len = this.length;
+    // a double modulo: the latency may exceed a very short loop
+    return ((this.pos - this.writeLat) % len + len) % len;
+  }
+
   _startFirst(i) {
     const t = this.tracks[i];
-    t.chunksL = []; t.chunksR = []; t.stored = 0;
+    // one allocation, between blocks; what gets stored is capped by it
+    const cap = this.maxFrames + this.inputLatency;
+    t.storeL = new Float32Array(cap); t.storeR = new Float32Array(cap); t.stored = 0;
     t.mode = 'rec'; t.writing = 'over'; t.written = 0; t.tail = 0;
     this.firstTrack = i;
     this.pendingLength = 0;
@@ -182,48 +206,84 @@ export class LooperCore {
     const lat = this.inputLatency;
     if (t.stored < lat + this.pendingLength) return;     // not enough arrived yet
     const len = this.pendingLength;
-    t.L = new Float32Array(len); t.R = new Float32Array(len);
-    this._copyStorage(t, lat, len, t.L, t.R, 0, false);
-    // what was played past the end belongs to the start of the second cycle
+    // the loop is a view on the storage: nothing to copy at close
+    t.L = t.storeL.subarray(lat, lat + len); t.R = t.storeR.subarray(lat, lat + len);
+    // what was played past the end (under a beat) belongs to the start of the second cycle
     const extra = t.stored - lat - len;
-    if (extra > 0) this._copyStorage(t, lat + len, extra, t.L, t.R, 0, true);
-    t.chunksL = []; t.chunksR = []; t.stored = 0;
+    for (let j = 0; j < extra; j++) { const d = j % len; t.L[d] += t.storeL[lat + len + j]; t.R[d] += t.storeR[lat + len + j]; }
+    t.storeL = t.storeR = null; t.stored = 0;
     t.has = true;
+    this._allocUndo(t);
     this.length = len;
     this.pos = extra % len;
     this.firstTrack = -1;
     this.pendingLength = 0;
-    t.mode = 'dub'; t.writing = 'dub'; t.written = 0; t.tail = 0;
-    this._snapshot(t);
+    if (this.running) {
+      t.mode = 'dub'; t.writing = 'dub'; t.written = 0; t.tail = 0;
+      this._startUndo(t, this._writeHead());
+    } else {
+      // STOP closed it: the loop exists but nothing moves until PLAY
+      t.mode = 'play'; t.writing = 'none'; t.written = 0; t.tail = 0;
+    }
     this._emit({ t: 'length', length: len });
     this._emitTrack(i);
   }
 
-  /** Copies `n` frames of first-loop storage from `from` into L/R at `to` (adding if dub). */
-  _copyStorage(t, from, n, L, R, to, add) {
-    for (let j = 0; j < n; j++) {
-      const s = from + j, c = (s / this.chunk) | 0, k = s - c * this.chunk;
-      const l = t.chunksL[c][k], r = t.chunksR[c][k];
-      const d = (to + j) % L.length;
-      if (add) { L[d] += l; R[d] += r; } else { L[d] = l; R[d] = r; }
-    }
-  }
-
   _startRec(t) {
     t.L = new Float32Array(this.length); t.R = new Float32Array(this.length);
-    t.has = true; t.undoValid = false;
+    t.has = true; t.undoValid = false; t.undoBuilding = false;
     t.mode = 'rec'; t.writing = 'over'; t.written = 0; t.tail = 0;
+    this._allocUndo(t);
+  }
+
+  /** The undo layer is sized once, with the loop, so no pass start allocates. */
+  _allocUndo(t) {
+    if (!t.undoL || t.undoL.length !== t.L.length) { t.undoL = new Float32Array(t.L.length); t.undoR = new Float32Array(t.R.length); }
   }
 
   _startDub(t) {
-    this._snapshot(t);
     t.mode = 'dub'; t.writing = 'dub'; t.written = 0; t.tail = 0;
+    this._startUndo(t, this._writeHead());
   }
 
-  _snapshot(t) {
-    if (!t.undoL || t.undoL.length !== t.L.length) { t.undoL = new Float32Array(t.L.length); t.undoR = new Float32Array(t.R.length); }
-    t.undoL.set(t.L); t.undoR.set(t.R);
-    t.undoValid = true;
+  /**
+   * Begins the undo layer of a pass whose first write lands at `start`.
+   * Copying the whole loop here would stall the audio thread (13 ms for
+   * 5 minutes), so the layer is built in two directions: the recorder saves
+   * each frame just before overwriting it (forward from `start`), and
+   * _fillUndo() copies the untouched frames backwards from the end of the
+   * pass, a bounded slice per block. The two meet, and only then is the
+   * layer valid; a pass that ends early is completed the same way.
+   */
+  _startUndo(t, start) {
+    this._allocUndo(t);
+    t.undoValid = false;
+    t.undoBuilding = true;
+    t.undoStart = start;
+    t.undoFilled = 0;
+  }
+
+  _fillUndo(t, i) {
+    const len = t.L.length;
+    const left = len - t.written - t.undoFilled;     // neither saved by the recorder nor filled yet
+    if (left > 0) {
+      const n = Math.min(left, UNDO_FILL);
+      // the slice just below the filled region, in unwrapped loop coordinates
+      let end = t.undoStart + len - t.undoFilled;
+      let start = end - n;
+      while (start < end) {
+        const a = start % len, m = Math.min(end - start, len - a);
+        t.undoL.set(t.L.subarray(a, a + m), a);
+        t.undoR.set(t.R.subarray(a, a + m), a);
+        start += m;
+      }
+      t.undoFilled += n;
+    }
+    if (t.written + t.undoFilled >= len) {
+      t.undoBuilding = false;
+      t.undoValid = true;
+      this._emitTrack(i);
+    }
   }
 
   /** Ends a rec/dub pass; the recorder keeps writing for the latency tail. */
@@ -233,12 +293,9 @@ export class LooperCore {
     if (t.tail === 0) t.writing = 'none';
   }
 
-  _store(t, l, r) {
-    const c = (t.stored / this.chunk) | 0;
-    if (c >= t.chunksL.length) { t.chunksL.push(new Float32Array(this.chunk)); t.chunksR.push(new Float32Array(this.chunk)); }
-    const k = t.stored - c * this.chunk;
-    t.chunksL[c][k] = l; t.chunksR[c][k] = r;
-    t.stored++;
+  /** Ends a pass at once, tail included (the transport stopped). */
+  _dropPass(t) {
+    t.mode = 'play'; t.writing = 'none'; t.tail = 0;
   }
 
   // ---------------------------------------------------------------- audio
@@ -255,7 +312,8 @@ export class LooperCore {
     const tracks = this.tracks;
     let inSq = 0;
     for (let i = 0; i < TRACKS; i++) { outs[i][0].fill(0); outs[i][1].fill(0); }
-    const sq = new Float64Array(TRACKS);
+    const sq = this._sq;
+    sq.fill(0);
 
     for (let s = 0; s < n; s++) {
       const l = inL[s], r = inR[s];
@@ -264,8 +322,9 @@ export class LooperCore {
       // ---- first loop: just store what comes in
       if (this.firstTrack >= 0) {
         const t = tracks[this.firstTrack];
-        if (t.stored < this.maxFrames + this.inputLatency) this._store(t, l, r);
-        else if (!this.pendingLength) { this.pendingLength = this.maxFrames; }
+        // the storage was sized when recording started: MAX changed since is honoured when smaller
+        if (t.stored < t.storeL.length && t.stored < this.maxFrames + this.inputLatency) { t.storeL[t.stored] = l; t.storeR[t.stored] = r; t.stored++; }
+        else if (!this.pendingLength) { this.pendingLength = Math.min(this.maxFrames, t.stored - this.inputLatency); }
         if (this.pendingLength) this._tryCloseFirst();
         // nothing plays until the loop exists (other tracks cannot have audio)
         continue;
@@ -273,17 +332,23 @@ export class LooperCore {
       if (this.length === 0) continue;
 
       const len = this.length, p = this.pos;
-      const w = (p - this.writeLat + len) % len;
+      const w = this._writeHead();
       for (let i = 0; i < TRACKS; i++) {
         const t = tracks[i];
         if (!t.has) continue;
-        // write
-        if (t.writing !== 'none') {
-          if (t.writing === 'dub') { t.L[w] = t.L[w] * t.feedback + l; t.R[w] = t.R[w] * t.feedback + r; }
-          else { t.L[w] = l; t.R[w] = r; }
+        // write — only while the head moves: stopped, every sample would land on one frame
+        if (this.running && t.writing !== 'none') {
+          if (t.writing === 'dub') {
+            if (t.undoBuilding) { t.undoL[w] = t.L[w]; t.undoR[w] = t.R[w]; }
+            t.L[w] = t.L[w] * t.feedback + l; t.R[w] = t.R[w] * t.feedback + r;
+          } else { t.L[w] = l; t.R[w] = r; }
           t.written++;
           if (t.tail > 0 && --t.tail === 0) t.writing = 'none';
-          else if (t.mode === 'rec' && t.written >= len) { t.mode = 'dub'; t.writing = 'dub'; this._snapshot(t); this._emitTrack(i); }
+          else if (t.mode === 'rec' && t.written >= len) {
+            t.mode = 'dub'; t.writing = 'dub'; t.written = 0;
+            this._startUndo(t, (w + 1) % len);
+            this._emitTrack(i);
+          }
         }
         // read
         if (!this.running || t.mute) continue;
@@ -302,6 +367,7 @@ export class LooperCore {
       }
       if (this.running && ++this.pos >= len) this.pos = 0;
     }
+    for (let i = 0; i < TRACKS; i++) if (tracks[i].undoBuilding) this._fillUndo(tracks[i], i);
     this.inputRms = Math.sqrt(inSq / (2 * n));
     for (let i = 0; i < TRACKS; i++) tracks[i].rms = Math.sqrt(sq[i] / (2 * n));
     return ev;

@@ -32,6 +32,7 @@ JAMRACK is a playable instrument rack — plain **HTML/CSS/JS + the Web Audio AP
 - **Computer keyboard** — two rows form a piano mapped by **physical key position**, so AZERTY/QWERTY/QWERTZ all work. `Z/X` octave, `C/V` velocity, `Space` sustain.
 - **Touch** — multi-touch with glissando; dedicated **PLAY / SOUNDS** views on phones (portrait *and* landscape).
 - **MIDI** — USB/Bluetooth keyboards auto-detected (Chrome/Edge): notes, velocity, sustain, pitch bend.
+- **Looper** — the **LOOPER** section: six synchronised loop tracks up to 5 minutes, recorded from the whole rack, one module or the audio input (with latency compensation), the Boss-style REC → DUB → PLAY cycle, beat-synced loop length from the METRO tempo, overdub feedback, undo, reverse and half speed, and a mixer strip per track (level, pan, low-pass, reverb and delay sends, mute/solo). Runs in an AudioWorklet. See [docs/looper.md](docs/looper.md).
 - **Guitar** — the **GUITAR → MIDI** section tracks a guitar (or bass, or voice) plugged into an audio interface and plays the rack with it: velocity, bends and vibrato as pitch bend, hammer-ons and slides without re-picking. Monophonic. Runs in an AudioWorklet with the browser's voice processing switched off; ~10 ms to name a note on the high strings, 25-35 ms on the low E (physics), plus the audio buffers shown on the card. Doubles as a tuner. See [docs/guitar-to-midi.md](docs/guitar-to-midi.md).
 
 ### 12 languages, RTL included
@@ -75,6 +76,7 @@ js/
   audio/
     engine.js            shared context, master bus, reverb/delay
     guitar/              guitar → MIDI tracker (YIN pitch + onsets) and its AudioWorklet
+    looper/              six-track looper: core (tested), AudioWorklet host, mixer plumbing
     instance.js          per-module voice management (all 4 engines)
     presets.js           the 12 ANALOG presets
     soundfont.js         midi-js-soundfonts loader
@@ -84,7 +86,7 @@ js/
   ui/                    rack cards, knobs, dialogs, manual
   i18n/                  12 languages, per-language note naming
 sfz/                     built-in SFZ banks (CC0 samples)
-test/                    Node tests of the guitar tracker on synthetic plucked strings
+test/                    Node tests: guitar tracker (synthetic strings, GuitarSet), looper core
 docs/                    design notes (guitar → MIDI latency budget, native option)
 serve.mjs                dev server only — not used in production
 ```
@@ -92,7 +94,7 @@ serve.mjs                dev server only — not used in production
 Tests (no dependencies, Node 20+):
 
 ```bash
-node --test test/guitar-tracker.test.mjs
+node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs
 ```
 
 Per-module audio chain: `voices → filter → volume → pan → mute → out`, with sends into a shared convolution reverb (generated impulse response) and delay.

@@ -13,6 +13,7 @@
 //   audio input additionally ─→ monitor level ─→ master (so you hear yourself)
 
 import { TRACKS } from './core.js';
+import { captureOpened, captureClosed } from '../../util.js';
 
 export { TRACKS };
 
@@ -43,6 +44,7 @@ export function createLooper(engine, handlers, opts = {}) {
   let stream = null, inGain = null, monitor = null;
   let monitorLevel = 1;
   let inputLatencyMs = 0;
+  let sourceGen = 0;                  // setSource() calls in flight: only the latest may touch the graph
   let status = { key: 'off', detail: '' };
 
   const setStatus = (key, detail = '') => { status = { key, detail }; handlers.status && handlers.status(status); };
@@ -128,6 +130,7 @@ export function createLooper(engine, handlers, opts = {}) {
       stream.getTracks().forEach(t => t.stop());
       try { inGain.disconnect(); monitor.disconnect(); } catch { /* gone */ }
       stream = inGain = monitor = null;
+      captureClosed('looper');
     }
     inputLatencyMs = 0;
   }
@@ -136,10 +139,12 @@ export function createLooper(engine, handlers, opts = {}) {
    * Chooses what the looper records: { kind: 'rack' } (every module, dry),
    * { kind: 'module', id } (one module), { kind: 'input', deviceId } (the
    * audio input, raw, with monitoring). Resolves false when the source
-   * could not be opened (the status says why).
+   * could not be opened (the status says why) or when a later call
+   * superseded this one while its permission prompt was up.
    */
   async function setSource(src) {
-    if (!(await init())) return false;
+    const gen = ++sourceGen;
+    if (!(await init()) || gen !== sourceGen) return false;
     disconnectSource();
     source = { kind: src.kind, id: src.id || null, deviceId: src.deviceId || '' };
     if (src.kind === 'rack') {
@@ -149,14 +154,26 @@ export function createLooper(engine, handlers, opts = {}) {
       if (!srcNode) { setStatus('noModule'); return false; }
     } else if (src.kind === 'input') {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { setStatus('noMic'); return false; }
+      // iOS: state the intent before the microphone opens, or the page is
+      // routed like a phone call (see captureOpened in util.js)
+      captureOpened('looper');
       try {
         const audio = {
           echoCancellation: false, noiseSuppression: false, autoGainControl: false,
           channelCount: { ideal: 2 }, latency: { ideal: 0 }, sampleRate: { ideal: ctx.sampleRate },
         };
         if (src.deviceId) audio.deviceId = { exact: src.deviceId };
-        stream = await navigator.mediaDevices.getUserMedia({ audio });
+        const s = await navigator.mediaDevices.getUserMedia({ audio });
+        if (gen !== sourceGen) {
+          // the player picked another source while the prompt was up: this
+          // stream must not be summed into the worklet nor left open
+          s.getTracks().forEach(t => t.stop());
+          if (source.kind !== 'input') captureClosed('looper');
+          return false;
+        }
+        stream = s;
         if (ctx.state !== 'running') await ctx.resume();
+        if (gen !== sourceGen) return false;   // the newer call already closed this stream
         const track = stream.getAudioTracks()[0];
         const st = track.getSettings ? track.getSettings() : {};
         inputLatencyMs = typeof st.latency === 'number' ? st.latency * 1000 : 0;
@@ -170,6 +187,8 @@ export function createLooper(engine, handlers, opts = {}) {
         monitor.connect(engine.master);
         srcNode = inGain;
       } catch (err) {
+        if (gen !== sourceGen) return false;
+        captureClosed('looper');
         setStatus(err && err.name === 'NotFoundError' ? 'noMic' : 'denied', (err && err.name) || 'Error');
         return false;
       }
@@ -184,6 +203,8 @@ export function createLooper(engine, handlers, opts = {}) {
     init,
     get status() { return status; },
     get source() { return source; },
+    /** True while an audio input stream feeds the worklet (false once it ended). */
+    get inputOpen() { return !!stream; },
     get params() { return params; },
     // transport
     toggle: i => post({ cmd: 'toggle', i }),
