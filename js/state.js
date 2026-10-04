@@ -79,6 +79,7 @@ export function defaultGuitar() {
     dyn: 0.7,           // 0..1 velocity dynamics
     bend: true,         // bends/vibrato become pitch bend (false = chromatic)
     octave: 0,          // -2..2
+    mode: 'mono',       // 'mono' | 'poly' (beta): which tracker runs
     collapsed: false,
   };
 }

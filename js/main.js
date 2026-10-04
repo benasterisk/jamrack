@@ -444,6 +444,7 @@ const guitar = createGuitarInput(engine.ctx, {
   bend: routeBend,
   meter: info => rack.setGuitarMeter(info, guitar.latency()),
   status: st => rack.setGuitarStatus(guitarStatusText(st), st.key === 'noMic' || st.key === 'denied'),
+  mode: () => rack.setGuitarStatus(guitarStatusText(guitar.status), false),   // the LCD names the engine
   devices: (list, id) => rack.setGuitarDevices(list, id),
   running: on => {
     rack.setGuitarRunning(on);
@@ -456,6 +457,7 @@ function applyGuitarParams() {
   const g = state.guitar;
   guitar.setGain(g.gain);
   guitar.setParams({ sens: g.sens, release: g.release, dyn: g.dyn, bend: g.bend, octave: g.octave });
+  guitar.setMode(g.mode);
 }
 applyGuitarParams();
 
@@ -463,7 +465,8 @@ function guitarStatusText(st) {
   const key = { off: 'gtrOff', starting: 'gtrStarting', listening: 'gtrListening', compat: 'gtrCompat',
     noMic: 'gtrNoMic', denied: 'gtrDenied', ended: 'gtrEnded' }[st.key] || 'gtrOff';
   const detail = st.detail ? ` — ${st.detail}` : '';
-  return t(key) + detail;
+  const mode = (st.key === 'listening' || st.key === 'compat') && state.guitar.mode === 'poly' ? ' · POLY β' : '';
+  return t(key) + mode + detail;
 }
 
 // ---------------------------------------------------------------- looper

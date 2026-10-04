@@ -1518,3 +1518,10 @@ select optgroup {
   body.m-edit .lp-togs .toggle { min-height: 40px; font-size: 13px; }
   body.m-edit .lp-meter { width: 80px; height: 22px; }
 }
+
+/* ---------------- GUITAR → MIDI : MONO / POLY switch ---------------- */
+.gtr-mode { margin: 0 4px 0 0; flex: none; }
+.gtr-mode button { padding: 3px 8px; font-size: 11px; }
+.gtr-mode button small { font-size: 9px; margin-left: 2px; vertical-align: super; opacity: .8; }
+.module.guitar.poly .gtr-mono-only { opacity: .35; pointer-events: none; }
+.module.guitar.poly .gtr-cents { visibility: hidden; }
