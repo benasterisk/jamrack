@@ -25,6 +25,18 @@ rien configurer.** Conséquences sur ce plan :
   vérifie qu'il ne régresse pas les autres.
 - Note-off : en l'absence d'avis contraire, la note **suit la décroissance
   de la corde** (bouton DECAY), comme en MONO.
+- **Assistant de calibration intégré, conservé par défaut** (précision du
+  5 octobre) : la carte propose un assistant guidé (« jouez la corde de mi
+  grave à vide… »), avec avance automatique dès qu'une note stable et juste
+  est entendue, reprise d'une note ratée, version rapide (18 pincements,
+  ~1 min) et complète (120, ~5 min). Le profil obtenu est **enregistré dans
+  le navigateur sans action de l'utilisateur** (IndexedDB, comme les
+  échantillons du SAMPLER ; rien n'est envoyé nulle part) et rechargé à la
+  visite suivante ; plusieurs profils nommés (une guitare, un micro, un
+  accordage chacun), date affichée, recalibration rapide, export et import
+  JSON pour passer d'un appareil à l'autre. Tant qu'aucun profil n'existe,
+  la banque générique joue : un visiteur n'a jamais à calibrer pour
+  commencer.
 
 ## 1. Réponse courte
 
@@ -164,7 +176,7 @@ commitée ; le mono et Basic Pitch sont re-notés sur cette même liste.
 | 2 Plomberie rack | bend par note (`routeNoteBend`, instance, sfz), `state.guitar.mode`, sélecteur MONO / POLY sur la carte, douze langues, refonte `Voice`, mesure aller-retour clic → micro dans la page, correctifs mono (réfractaire, `setParams`) | 2,5 | faible | tests verts, guitarset-eval mono identique |
 | 3 POLY v1 JS hors ligne | `poly.js`, `fft.js`, `templates.js`, NMF, règles, YIN sur résidu | 4 (+1 réserve) | **élevé** | comp F1 ≥ 0,55 à 50 ms, solo ≥ 0,72 ; 2-3 notes ≥ 90 % ; complétion p90 < 60 ms ; 0 coincée ; bend p50 ≤ 25 ms ; note-off ≤ 45 ms aigu / ≤ 70 ms grave ; 0 note avant le pincement ; vélocité par voix à ±15 % |
 | 4 Intégration navigateur | POLY dans le worklet, lecture CPU et TRK sur la carte, page de test, vos relevés | 1,5 | moyen | bascule live sans note coincée ; porte CPU ci-dessous |
-| 5 Calibration | grille 6 × 20, rapide / complète, avance automatique, vérification ±50 cents, IndexedDB, export, enregistreur intégré | 2 | moyen | vos accords F1 ≥ 0,75 ; complète ≥ rapide mesuré |
+| 5 Assistant de calibration | assistant guidé sur la carte (rapide 18 / complète 120 pincements, avance automatique, reprise, vérification ±50 cents), profils nommés enregistrés par défaut dans IndexedDB et rechargés automatiquement, date, recalibration rapide, export / import JSON, douze langues | 2,5 | moyen | vos accords F1 ≥ 0,75 ; complète ≥ rapide ; un visiteur non calibré joue sur la banque générique sans message bloquant |
 | 6 Réglage sur votre guitare, bêta | seuils figés, rapport d'échecs, docs | 2 | moyen | fantômes < 5 %, coincées < 1 %, écoute « utilisable » |
 | 7 WASM (si la porte CPU l'exige) | `rust/jamrack-dsp`, deux binaires, parité 1e-4, CI | 2 | faible-moyen | voir porte |
 | 8 *Opt.* utilitaire natif | dépôt GPLv3, ASIO / IAudioClient3 / CoreAudio | 5 | moyen-élevé | gain IN mesuré chez vous |
