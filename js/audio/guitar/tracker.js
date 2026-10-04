@@ -40,20 +40,37 @@ export const DEFAULT_PARAMS = {
 
 // Analysis frame = HOP decimated samples (≈2.7 ms at 24 kHz)
 const HOP = 64;
-const YIN_THRESHOLD = 0.15;  // first dip below this = the period
-const CONF_ON = 0.85;        // confidence (1 - dip depth) to start a note
-const CONF_TRACK = 0.7;      // confidence to keep tracking a sounding note
-const JUMP = 0.5;            // semitones within JUMP_SPAN frames = hammer-on, not a bend
-const JUMP_SPAN = 3;         // frames (~8 ms): faster than any finger can bend
-const HOLD = 6;              // frames (~16 ms) of peak-hold for the level: one period of the low E
-const BEND_RANGE = 2;        // semitones (what the synth engines accept)
-const BEND_RETRIG = 2.35;    // beyond this the note is re-struck (slide)
-const REFRACTORY = 10;       // frames (~27 ms): one onset per pluck
-const PEND_MAX = 20;         // frames (~53 ms) to find a pitch after an onset
-const LOWCONF_MAX = 12;      // frames (~32 ms) without a period = string muted
-const SOFT_AGREE = 4;        // frames of stable pitch for an onset-less (swell) note
-const VEL_LO_DB = -48, VEL_HI_DB = -12;   // RMS dBFS → velocity 0..1
 const METER_EVERY = 8;       // frames between meter messages (~21 ms)
+const VEL_LO_DB = -48, VEL_HI_DB = -12;   // RMS dBFS → velocity 0..1
+
+/**
+ * Decision thresholds. Exported (and mutable) so the evaluation scripts can
+ * ablate them; the values are the ones tuned on synthetic strings and on
+ * real guitar (GuitarSet solo takes, see test/guitarset-eval.mjs).
+ */
+export const TUNING = {
+  YIN_THRESHOLD: 0.15,  // first dip below this = the period
+  CONF_ON: 0.85,        // confidence (1 - dip depth) to start a note
+  CONF_TRACK: 0.7,      // confidence to keep tracking a sounding note
+  JUMP: 0.5,            // semitones within JUMP_SPAN frames = hammer-on, not a bend
+  JUMP_SPAN: 3,         // frames (~8 ms): faster than any finger can bend
+  HOLD: 6,              // frames (~16 ms) of peak-hold for the level: one period of the low E
+  BEND_RANGE: 2,        // semitones (what the synth engines accept)
+  BEND_RETRIG: 2.35,    // beyond this the note is re-struck (slide)
+  REFRACTORY: 10,       // frames (~27 ms): one onset per pluck
+  PEND_MAX: 20,         // frames (~53 ms) to find a pitch after an onset
+  LOWCONF_MAX: 12,      // frames (~32 ms) without a period = string muted
+  SOFT_AGREE: 4,        // frames of stable pitch for an onset-less (swell) note
+  ONSET_AGREE: 3,       // frames agreeing on the pitch before a plucked note starts
+  LEGATO_AGREE: 4,      // ... before a hammer-on / pull-off / slide retriggers (~11 ms)
+  OCTAVE_AGREE: 6,      // ... for an octave change without a pluck (rare: usually two strings)
+  GRID: 0.35,           // semitones: a note must sit this close to the grid to be named
+  SAME_NOTE_HOLDOFF: 19,// frames (~50 ms): a note cannot be re-picked right after it started
+  EARLY_FIX: 22,        // frames (~60 ms): a different stable pitch this soon after a pluck
+                        // is a wrong note to correct, not a bend to follow
+  HARMONIC_GUARD: 1,    // 1: check 1.5x/2x/3x the period for a clearly deeper dip
+};
+const T = TUNING;
 
 const dB = x => 20 * Math.log10(Math.max(x, 1e-9));
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -111,6 +128,8 @@ export class GuitarTracker {
     this.lastOnsetPeak = -200;
     this.note = -1;          // sounding note (raw, before octave/transpose) or -1
     this.noteVel = 0;
+    this.noteK = -1e9;       // frame of the note-on
+    this.noteWhy = '';       // 'pluck' | 'legato' | 'swell' | 'fix'
     this.peakDb = -200;      // loudest frame of the sounding note
     this.pend = null;        // onset waiting for its pitch
     this.lowConf = 0; this.lowLevel = 0;
@@ -163,7 +182,8 @@ export class GuitarTracker {
 
   /**
    * Feeds a block of mono samples and returns the events it produced:
-   *   { t: 'on', midi, vel }  { t: 'off', midi }  { t: 'bend', semis }
+   *   { t: 'on', midi, vel, why }  { t: 'off', midi }  { t: 'bend', semis }
+   *   (why: 'pluck' | 'legato' | 'swell' | 'fix' — how the note was decided)
    *   { t: 'meter', db, hz, midiF, conf, note, latMs }  (~50 per second)
    * The returned array is reused: consume it before the next call.
    */
@@ -226,14 +246,14 @@ export class GuitarTracker {
     // RMS swings with the waveform: hold the peak over one period for every
     // decision about the sustained level.
     let lvl = rmsDb;
-    for (let i = 1; i < HOLD; i++) lvl = Math.max(lvl, H[(k - i) & HM]);
+    for (let i = 1; i < T.HOLD; i++) lvl = Math.max(lvl, H[(k - i) & HM]);
 
     const gate = this.gateDb, rise = this.riseDb;
     let onset = false, strong = false;
     // One onset per pluck (the refractory period) — unless a louder attack
     // follows: the pick touching the string scratches a few ms before it
     // releases it, and that scratch must not mask the real attack.
-    const free = k - this.lastOnset >= REFRACTORY || rmsDb >= this.lastOnsetPeak + 3;
+    const free = k - this.lastOnset >= T.REFRACTORY || rmsDb >= this.lastOnsetPeak + 3;
     if (rmsDb > gate && rmsDb > ref - 6 && free) {
       // a pick transient is shorter than a frame and may straddle two
       const broad = rmsDb - ref, high = Math.max(hfDb, HF[(k - 1) & HM]) - hfRef;
@@ -277,7 +297,7 @@ export class GuitarTracker {
       hz = r.hz; conf = r.conf;
     }
     if (hz > 0) midiF = 69 + 12 * Math.log2(hz / p.a4);
-    const confident = conf >= CONF_TRACK && !Number.isNaN(midiF);
+    const confident = conf >= T.CONF_TRACK && !Number.isNaN(midiF);
     const m = confident ? Math.round(midiF) : -1;
 
     if (this.pend) {
@@ -294,17 +314,18 @@ export class GuitarTracker {
         if (rmsDb - dip >= rise && dip <= ref - 6) pd.strong = true;
       }
       // the very first frame is the pick transient: noise, not pitch
-      if (k - pd.k >= 1 && conf >= CONF_ON && m >= 0 && lvl > gate) {
+      // (a transient's estimate wanders between semitones; a note sits on the grid)
+      if (k - pd.k >= 1 && conf >= T.CONF_ON && m >= 0 && lvl > gate && Math.abs(midiF - m) <= T.GRID) {
         pd.agree = (m === pd.cand) ? pd.agree + 1 : 1;
         pd.cand = m;
-        if (pd.agree >= 2) {
-          if (m !== this.note || pd.strong) {
+        if (pd.agree >= T.ONSET_AGREE) {
+          if (m !== this.note || (pd.strong && k - this.noteK >= T.SAME_NOTE_HOLDOFF)) {
             this.lastLatMs = (k - pd.k + 1) * this.frameMs;
-            this._noteOn(out, m, this._vel(pd.peak), Math.max(pd.peak, rmsDb));
+            this._noteOn(out, m, this._vel(pd.peak), Math.max(pd.peak, rmsDb), 'pluck');
           }
           this.pend = null;
         }
-      } else if (k - pd.k > PEND_MAX) {
+      } else if (k - pd.k > T.PEND_MAX) {
         this.pend = null;   // a knock or a scrape, not a note
       }
     } else if (this.note >= 0) {
@@ -312,35 +333,42 @@ export class GuitarTracker {
       if (confident) {
         this.lowConf = 0;
         const dev = midiF - this.note;
+        const onGrid = Math.abs(midiF - m) <= T.GRID;
         let jump = false;
-        for (let i = 1; i <= JUMP_SPAN; i++) {
+        for (let i = 1; i <= T.JUMP_SPAN; i++) {
           const past = this.midiHist[(k - i) & 7];
-          if (!Number.isNaN(past) && Math.abs(midiF - past) >= JUMP) jump = true;
+          if (!Number.isNaN(past) && Math.abs(midiF - past) >= T.JUMP) jump = true;
         }
-        if (m !== this.note && (jump || !p.bend || Math.abs(dev) > BEND_RETRIG)) {
+        // Right after a pluck, a stable pitch on another semitone means the
+        // attack transient fooled the onset search: correct the note rather
+        // than letting the pitch bend quietly absorb a wrong note.
+        const early = this.noteWhy === 'pluck' && k - this.noteK <= T.EARLY_FIX;
+        const octave = Math.abs(dev) >= 11.5 && Math.abs(dev) <= 12.5;
+        if (m !== this.note && onGrid && (jump || early || !p.bend || Math.abs(dev) > T.BEND_RETRIG)) {
           // Hammer-on, pull-off or slide: a new note without a new pluck.
-          // Two frames must agree so a single bad estimate cannot retrigger.
+          // Several frames must agree so a transition cannot leave ghost notes.
           this.legAgree = (m === this.legCand) ? this.legAgree + 1 : 1;
           this.legCand = m;
-          if (this.legAgree >= 2) {
-            this.lastLatMs = 2 * this.frameMs;
-            this._noteOn(out, m, Math.max(this._vel(rmsDb), this.noteVel * 0.6), rmsDb);
+          const need = octave ? T.OCTAVE_AGREE : T.LEGATO_AGREE;
+          if (this.legAgree >= need) {
+            this.lastLatMs = need * this.frameMs;
+            this._noteOn(out, m, Math.max(this._vel(rmsDb), this.noteVel * 0.6), rmsDb, early ? 'fix' : 'legato');
           }
         } else {
           this.legAgree = 0;
-          if (p.bend) this._bend(out, dev);
+          if (p.bend) this._bend(out, early ? clamp(dev, -0.5, 0.5) : dev);
         }
-      } else if (++this.lowConf >= LOWCONF_MAX) {
+      } else if (++this.lowConf >= T.LOWCONF_MAX) {
         this._noteOff(out);   // no period left: the string was muted
       }
-    } else if (this.armed && lvl > gate && conf >= CONF_ON && m >= 0) {
+    } else if (this.armed && lvl > gate && conf >= T.CONF_ON && m >= 0 && Math.abs(midiF - m) <= T.GRID) {
       // ---- idle: a note that swelled in without a detectable attack
       // (volume pedal, very soft touch). Needs a longer agreement than a pluck.
       this.softAgree = (m === this.softCand) ? this.softAgree + 1 : 1;
       this.softCand = m;
-      if (this.softAgree >= SOFT_AGREE) {
-        this.lastLatMs = SOFT_AGREE * this.frameMs;
-        this._noteOn(out, m, this._vel(rmsDb), rmsDb);
+      if (this.softAgree >= T.SOFT_AGREE) {
+        this.lastLatMs = T.SOFT_AGREE * this.frameMs;
+        this._noteOn(out, m, this._vel(rmsDb), rmsDb, 'swell');
       }
     } else {
       this.softAgree = 0;
@@ -379,8 +407,10 @@ export class GuitarTracker {
     return clamp(1 - this.p.dyn + this.p.dyn * raw, 0.05, 1);
   }
 
-  _noteOn(out, m, vel, peakDb) {
+  _noteOn(out, m, vel, peakDb, why) {
     if (this.note >= 0) out.push({ t: 'off', midi: this.note + this.shift });
+    this.noteK = this.frame;
+    this.noteWhy = why;
     if (this.bendOut !== 0) out.push({ t: 'bend', semis: 0 });
     this.bendOut = 0; this.bendSmooth = 0;
     this.note = m;
@@ -389,7 +419,7 @@ export class GuitarTracker {
     this.lowConf = 0; this.lowLevel = 0;
     this.legAgree = 0; this.softAgree = 0;
     this.midiHist.fill(NaN);
-    out.push({ t: 'on', midi: m + this.shift, vel });
+    out.push({ t: 'on', midi: m + this.shift, vel, why });
   }
 
   _noteOff(out) {
@@ -404,7 +434,7 @@ export class GuitarTracker {
   _bend(out, dev) {
     // Light smoothing kills estimator jitter without lagging a real bend.
     this.bendSmooth += (dev - this.bendSmooth) * 0.35;
-    const b = clamp(this.bendSmooth, -BEND_RANGE, BEND_RANGE);
+    const b = clamp(this.bendSmooth, -T.BEND_RANGE, T.BEND_RANGE);
     if (Math.abs(b - this.bendOut) > 0.03) {
       this.bendOut = b;
       out.push({ t: 'bend', semis: b });
@@ -426,7 +456,7 @@ export class GuitarTracker {
       if (w >= W) break;
       const tHi = Math.min(tmax, Math.round(w * 1.33));
       const r = this._yin(tmin, tHi, w, Math.floor(tHi / 2));
-      if (r.conf >= CONF_ON) return r;
+      if (r.conf >= T.CONF_ON) return r;
     }
     return this._yin(tmin, tmax, W);
   }
@@ -476,7 +506,7 @@ export class GuitarTracker {
     // first dip below the threshold, walked down to its local minimum
     let tau = -1;
     for (let t = tLo; t < searchHi; t++) {
-      if (cmnd[t] < YIN_THRESHOLD) {
+      if (cmnd[t] < T.YIN_THRESHOLD) {
         while (t + 1 <= tHi && cmnd[t + 1] < cmnd[t]) t++;
         tau = t;
         break;
@@ -488,13 +518,16 @@ export class GuitarTracker {
       for (let t = tLo; t <= searchHi; t++) if (cmnd[t] < best) { best = cmnd[t]; tau = t; }
       if (tau < 0) return { hz: 0, conf: 0 };
     }
-    // Octave-up guard: a strong 2nd harmonic can dip below the threshold at
-    // half the period. The true period then shows a clearly deeper dip.
-    if (2 * tau + 2 <= tHi) {
-      let t2 = 2 * tau, best = cmnd[t2];
-      for (let t = 2 * tau - 2; t <= 2 * tau + 2; t++) if (cmnd[t] < best) { best = cmnd[t]; t2 = t; }
-      if (best < cmnd[tau] - 0.1) tau = t2;
+    // Harmonic guard: a strong 2nd or 3rd harmonic (or the attack transient)
+    // can dip below the threshold at 1/2, 1/3 or 2/3 of the period. The true
+    // period then shows a clearly deeper dip at 2x, 3x or 1.5x the lag.
+    let guardTau = tau, guardBest = cmnd[tau] - 0.1;
+    for (const mult of (T.HARMONIC_GUARD ? [1.5, 2, 3] : [2])) {
+      const c = Math.round(mult * tau);
+      if (c + 2 > tHi) continue;
+      for (let t = c - 2; t <= c + 2; t++) if (cmnd[t] < guardBest) { guardBest = cmnd[t]; guardTau = t; }
     }
+    tau = guardTau;
     const conf = 1 - cmnd[tau];
     // parabolic interpolation of the minimum
     let tauF = tau;
