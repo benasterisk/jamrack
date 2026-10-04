@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GuitarTracker } from '../js/audio/guitar/tracker.js';
-import { pluck, silence, concat, seq, run, ons, offs, bends, meters, notes } from './plucks.mjs';
+import { pluck, silence, concat, seq, run, ons, offs, bends, meters, notes, chord } from './plucks.mjs';
 
 const SR = 48000;
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -186,4 +186,74 @@ test('CPU: one second of audio analyses in a small fraction of a second', () => 
   const ms = performance.now() - t0;
   console.log(`1 s of audio tracked in ${ms.toFixed(0)} ms (${(ms / 10).toFixed(1)} % of one core)`);
   assert.ok(ms < 300);
+});
+
+// ---------------------------------------------------------------------------
+// Polyphony: what the MONO tracker does today when several strings ring.
+// These two tests DOCUMENT the expected behaviour of a monophonic tracker
+// (one `note` state, one YIN period), they are not regressions: they are the
+// baseline the POLY engine (docs/polyphonic-plan.md) must beat, measured on
+// the same synthetic signals (test/plucks.mjs chord()). The numbers in the
+// comments come from the scratch run that set the thresholds; the tables the
+// tests print show them again.
+
+/** Sounding-notes bookkeeping over an event list. */
+function polyStats(ev) {
+  let sounding = 0, maxSounding = 0;
+  for (const e of notes(ev)) { sounding += e.t === 'on' ? 1 : -1; maxSounding = Math.max(maxSounding, sounding); }
+  const on = ons(ev);
+  let maxOnsIn100 = 0;
+  for (let i = 0; i < on.length; i++) {
+    let c = 0;
+    for (let j = i; j < on.length && on[j].ms - on[i].ms <= 100; j++) c++;
+    maxOnsIn100 = Math.max(maxOnsIn100, c);
+  }
+  return { maxSounding, maxOnsIn100, on };
+}
+
+test('mono on a 3-note chord (15 ms strum): at most one sounding note, at most one note-on — POLY baseline', () => {
+  // Measured (5 open-position triads × 3 seeds × down/up strum, 15 ms spread):
+  // 0 or 1 note-on per chord, never 2; the one note named is the last/first
+  // string of the strum or a common sub-period (D major → D2). Recall on the
+  // chord's notes: ≤ 1/3. POLY target (plan, jalon 3): 2-3 notes ≥ 90 %,
+  // chord completion p90 < 60 ms.
+  const CHORDS = { 'E (E2 B2 E3)': [40, 47, 52], 'Am (A2 E3 A3)': [45, 52, 57], 'D (D3 A3 F#4)': [50, 57, 66], 'G (G3 B3 D4)': [55, 59, 62], 'C (C3 E3 G3)': [48, 52, 55] };
+  const rows = [], problems = [];
+  let found = 0, total = 0;
+  for (const [label, ns] of Object.entries(CHORDS)) for (const seed of [1, 7, 42]) for (const up of [false, true]) {
+    // dur > total: every string is still ringing when the signal ends, so the
+    // end of the signal never leaves one string alone (that would be mono)
+    const sig = chord(SR, { notes: ns, at: 0.1, dur: 1, spread: 0.015, seed, up, total: 0.9 });
+    const ev = run(new GuitarTracker(SR), sig);
+    const { maxSounding, on } = polyStats(ev);
+    const hits = new Set(on.map(e => e.midi).filter(m => ns.includes(m))).size;
+    found += hits; total += ns.length;
+    rows.push({ chord: label, seed, strum: up ? 'up' : 'down', 'note-ons': on.map(e => name(e.midi) + '@' + e.ms.toFixed(0)).join(' ') || '-', 'max sounding': maxSounding, 'notes found': `${hits}/${ns.length}` });
+    if (maxSounding > 1) problems.push(`${label} seed ${seed} ${up ? 'up' : 'down'}: ${maxSounding} notes sounding at once`);
+    if (on.length > 1) problems.push(`${label} seed ${seed} ${up ? 'up' : 'down'}: ${on.length} note-ons`);
+  }
+  console.table(rows);
+  console.log(`mono recall on 3-note chords: ${found}/${total} notes (${(100 * found / total).toFixed(0)} %) — the POLY baseline to beat`);
+  assert.deepEqual(problems, []);
+  // the documented baseline: a monophonic tracker cannot hear more than a third of a triad
+  assert.ok(found / total <= 1 / 3, `mono recall ${found}/${total} on chords: if this grew, update the POLY baseline`);
+});
+
+test('mono on a dyad (A2+E3): never both notes, at most one note-on per 100 ms — POLY baseline', () => {
+  // Measured (spreads 0 / 5 / 15 / 35 ms × 4 seeds × down/up): 0 note-ons when
+  // the two strings start within 15 ms (the two periods make YIN's dip too
+  // shallow to pass CONF_ON) and exactly 1 at 35 ms (the first string is
+  // named before the second lands, then goes silent when it does); never 2.
+  // POLY target: both notes within 40 ms of their pluck.
+  const rows = [], problems = [];
+  for (const spread of [0, 0.005, 0.015, 0.035]) for (const seed of [1, 7, 42, 99]) for (const up of [false, true]) {
+    const sig = chord(SR, { notes: [45, 52], at: 0.1, dur: 1, spread, seed, up, total: 0.9 });
+    const ev = run(new GuitarTracker(SR), sig);
+    const { maxSounding, maxOnsIn100, on } = polyStats(ev);
+    rows.push({ 'spread ms': spread * 1000, seed, strum: up ? 'up' : 'down', 'note-ons': on.map(e => name(e.midi) + '@' + e.ms.toFixed(0)).join(' ') || '-', 'max sounding': maxSounding, 'note-ons / 100 ms': maxOnsIn100 });
+    if (maxSounding > 1) problems.push(`spread ${spread * 1000} ms seed ${seed}: ${maxSounding} notes sounding at once`);
+    if (maxOnsIn100 > 1) problems.push(`spread ${spread * 1000} ms seed ${seed}: ${maxOnsIn100} note-ons within 100 ms`);
+  }
+  console.table(rows);
+  assert.deepEqual(problems, []);
 });
