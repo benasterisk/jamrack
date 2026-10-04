@@ -16,8 +16,8 @@ aux changements de session. Détails : `docs/local-setup.md`.
   `routeNoteOn / routeNoteOff / routeBend` dans `js/main.js` (bend global
   seulement, pour l'instant). Moteur : `js/audio/engine.js` (bus `dry` →
   master ; `latencyHint: 0` sur desktop).
-- Tests : `node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs`
-  (31 tests, ~16 s, Node 20+).
+- Tests : `node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs
+  test/poly-engine.test.mjs` (39 tests, ~25 s, Node 20+).
 - Le propriétaire (benasterisk) ne code pas lui-même : il dirige, teste à la
   guitare et décide du périmètre. Répondre **en français**, sans jargon
   inutile, avec des chiffres mesurés plutôt que des promesses.
@@ -74,19 +74,34 @@ aux changements de session. Détails : `docs/local-setup.md`.
   53,5 % (seuil 60), précision 81,8 % (réussi). Limite identifiée : la règle
   de note par hop (`test/poly/notes.py`), pas le décomposeur (99 % des notes
   de doubles reçoivent une activation suffisante).
-- **Rien de POLY n'est dans l'application** (`js/`) : ni sélecteur, ni
-  moteur JS, ni assistant.
-- **Décision prise le 5 octobre (plan §14) : option 2.** Construire le
-  moteur POLY temps réel maintenant avec un périmètre honnête : POLY
-  « bêta » derrière le sélecteur, MONO par défaut, « notes seules mieux que
-  MONO, doubles et triades au mieux ». Travail sur la branche `feature/poly`,
-  PR vers `main` quand la bêta est utilisable.
-- Jalons (plan §14) : 1. portage JS de la configuration fusionnée dans le
-  worklet (`fft.js`, `templates.js`, NMF β 0,5, 60 gabarits actifs,
-  15 itérations, λ 400 ; coût numpy 1,17 ms par hop, **à mesurer en JS**,
-  budget 2,67 ms) avec équivalence Python ↔ JS ; 2. intégration
-  (`state.guitar.mode` + sélecteur, bend par note, CPU/TRK, i18n) ;
-  3. assistant de calibration ; 4. vérification puis PR.
+- **Fait le 5 octobre (jalons 1 et 2, première partie), détail et chiffres
+  dans `docs/poly-implementation.md`** : moteur POLY JS dans
+  `js/audio/guitar/poly/` (profil mesuré, FFT, rééchantillonneur identique à
+  scipy, banque fitatt rendue dans le navigateur, β-NMF, règle de notes,
+  `PolyTracker` dans `engine.js`). Équivalence prouvée : sur les 36 prises
+  solo + comp de `test/takes.json`, le décomposeur dense donne **3868 notes
+  sur 3868 identiques** au prototype Python (onsets, fins, vélocités, mêmes
+  scores). Le dense coûte 2,6 ms par hop de 2,67 ms dans le worklet de
+  Chrome : l'application utilise la banque **clairsemée τ = 1e-4**
+  (`DECOMPOSER.sparse`, 1,5 ms/hop, 8 notes sur 3868 décalées d'un hop,
+  1 manquante, scores inchangés). `state.guitar.mode` ('mono' par défaut |
+  'poly'), sélecteur MONO / POLY β sur la carte, worklet qui bascule de
+  moteur (banque rendue sur le fil principal), CPU et nombre de voix
+  affichés, manuel et i18n 12 langues. Outils : `test/poly-dump-events.mjs`
+  (moteur JS sur GuitarSet, format dump-events, coût par hop),
+  `test/poly-engine.test.mjs` (8 tests ; 39 au total avec les deux autres
+  fichiers), `test/poly/export-profile.py` (régénère `profile.js`).
+- **Pas fait** : bend par note (le prototype ne donne pas de hauteur continue
+  par voix, POLY n'émet aucun bend), assistant de calibration (jalon 3 ;
+  `buildBank(win, { bLaw, prof })` accepte déjà un profil), évaluation des
+  six jeux de mixes via le moteur JS, essai à la guitare par le
+  propriétaire, revue adversariale et PR (jalon 4).
+- **Décision prise le 5 octobre (plan §14) : option 2.** POLY « bêta »
+  derrière le sélecteur, MONO par défaut, « notes seules mieux que MONO,
+  doubles et triades au mieux ». Branche `feature/poly`, PR vers `main`
+  quand la bêta est utilisable.
+- Données locales du propriétaire : GuitarSet complet (hex compris) dans
+  `D:\guitarset` ; `mir_eval` installé.
 
 ## Conventions et pièges
 
