@@ -82,6 +82,17 @@ research-grade problem (neural models like Spotify's Basic Pitch need
 Tuning aid: `node test/trace.mjs repick|run|hammer [fromMs] [toMs]` prints a
 frame-by-frame trace of levels, confidence and decisions.
 
+## Requirement: a MONO / POLY selector
+
+Polyphony will not replace the monophonic tracker: the card gets a
+**MONO / POLY** selector (persisted as `state.guitar.mode`). MONO keeps the
+tracker above as the fast, predictable path (9-35 ms, ~12 % of a core);
+POLY runs the polyphonic engine chosen by the design study, with its own
+latency and CPU cost shown on the card. Switching modes releases every
+sounding note first and keeps the input, gain, sensitivity and decay
+controls common to both. The evaluation harness must report both modes on
+the same GuitarSet takes (solo for MONO, comp for POLY).
+
 ## If the IN/OUT buffers turn out to be the problem: the native bridge
 
 Same tracker, different plumbing — a small helper that owns the audio input
