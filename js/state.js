@@ -92,7 +92,7 @@ export function defaultLooperTrack() {
     vol: 0.8, pan: 0,
     cutoff: 1,          // 0..1 log -> 40 Hz..18 kHz (low-pass), 1 = open
     rev: 0, del: 0,     // sends to the shared reverb / delay
-    mute: false, solo: false,
+    mute: false, solo: false, paused: false,
     reverse: false, half: false,
     feedback: 1,        // overdub: 1 = layers never fade
   };

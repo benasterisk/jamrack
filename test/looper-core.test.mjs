@@ -280,3 +280,22 @@ test('the undo layer builds itself and survives a partial pass', () => {
   core.undo(0);
   assert.ok(t.L.every((v, q) => v === layered[q]), 'undo again redoes');
 });
+
+test('PAUSE silences one track, ends its overdub, and resumes in sync', () => {
+  const c = new LooperCore(1000, { maxSeconds: 10 });
+  const one = new Float32Array(100).fill(1), zero = new Float32Array(100);
+  const outs = Array.from({ length: 6 }, () => [new Float32Array(100), new Float32Array(100)]);
+  c.toggle(0); c.process(one, one, outs); c.toggle(0); c.process(zero, zero, outs);   // 100-frame loop of 1s
+  c.process(zero, zero, outs);
+  assert.ok(outs[0][0].every(v => v === 1), 'track plays');
+  c.toggle(0);                                  // start an overdub
+  c.setTrack(0, { paused: true });
+  assert.equal(c.tracks[0].mode, 'play', 'pausing ends the overdub');
+  c.process(zero, zero, outs);
+  assert.ok(outs[0][0].every(v => v === 0), 'paused track is silent');
+  const posBefore = c.pos;
+  c.setTrack(0, { paused: false });
+  c.process(zero, zero, outs);
+  assert.ok(outs[0][0].every(v => v === 1), 'resumes');
+  assert.equal(c.pos, posBefore, 'transport kept running: in sync');
+});

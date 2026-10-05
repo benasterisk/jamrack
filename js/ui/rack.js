@@ -482,6 +482,7 @@ export function createRack(container, api) {
       <span class="lp-num">${i + 1}</span>
       <button class="tb-btn led-btn lp-rec" title="${esc(t('lpTitleTrack'))}"><span class="led"></span><span class="lp-mode">${esc(t('lpRec'))}</span></button>
       <div class="lp-sq">
+        <button class="sq-btn lp-pause ${p.paused ? 'active-amber' : ''}" title="${esc(t('lpTitlePause'))}">${p.paused ? '▶' : '⏸'}</button>
         <button class="sq-btn lp-mute ${p.mute ? 'active-amber' : ''}" title="${esc(t('lpTitleMute'))}">${esc(t('lpMute'))}</button>
         <button class="sq-btn lp-solo ${p.solo ? 'active-teal' : ''}" title="${esc(t('lpTitleSolo'))}">${esc(t('lpSolo'))}</button>
         <button class="sq-btn lp-tundo" title="${esc(t('lpTitleUndo'))}" disabled>↶</button>
@@ -511,6 +512,12 @@ export function createRack(container, api) {
     strip.querySelector('.lp-rec').addEventListener('click', () => {
       lpLast.toggled = i;        // the header UNDO follows the last track touched
       api.looperToggle(i);
+    });
+    const pauseBtn = strip.querySelector('.lp-pause');
+    pauseBtn.addEventListener('click', () => {
+      set({ paused: !p.paused });
+      pauseBtn.classList.toggle('active-amber', p.paused);
+      pauseBtn.textContent = p.paused ? '▶' : '⏸';
     });
     tr.mute.addEventListener('click', () => {
       set({ mute: !p.mute });
