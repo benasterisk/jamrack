@@ -89,7 +89,8 @@ aux changements de session. Détails : `docs/local-setup.md`.
   clairsemé τ = 1e-3, 8 itérations** (`DECOMPOSER`, 1,1 ms Node / 1,62 ms
   worklet = 61 %, −0,1 pt F1 solo, −1,6 pt triades sur le banc) + **mode ÉCO
   automatique** (5 it. / actif 40 quand le hop dépasse 80 % du budget une
-  seconde, retour sous 45 %, tag ÉCO sur la carte). POLY ne réagit qu'aux
+  seconde, retour sous 45 %, tag ÉCO sur la carte ; coût 0,39 ms, −1 pt F1 solo,
+  −5 pt triades : secours seulement). POLY ne réagit qu'aux
   attaques pincées (une voix ne déclenche rien : normal, documenté). `state.guitar.mode` ('mono' par défaut |
   'poly'), sélecteur MONO / POLY β sur la carte, worklet qui bascule de
   moteur (banque rendue sur le fil principal), CPU et nombre de voix

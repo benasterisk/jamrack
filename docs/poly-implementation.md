@@ -157,7 +157,7 @@ les six jeux (même banc, 13 624 notes) :
 | τ 1e-4, 15 it., actif 40 | 2,04 | 81,0 | 57,9 | 43,9 | 77,1 |
 | **τ 1e-3, 8 it. (livré)** | **1,10** | 80,7 | 57,0 | 43,6 | 77,8 |
 | τ 1e-4, 10 it., actif 40 | 1,47 | 80,6 | 57,2 | 42,5 | 76,3 |
-| ÉCO : τ 1e-3, 5 it., actif 40 | *(à compléter)* | | | | |
+| ÉCO : τ 1e-3, 5 it., actif 40 | 0,39 (0,82 pour le livré, 2,30 pour le 1er livré, machine moins chargée) | 79,7 | 54,2 | 38,3 | 74,3 |
 
 **Réglage retenu : clairsemé τ = 1e-3, 8 itérations** (`DECOMPOSER` dans
 `engine.js`) : coût divisé par 2,4 pour −0,1 point de F1 en solo et
@@ -168,7 +168,10 @@ hop (61 %)** là où le réglage précédent coûtait 4,05 ms (152 %).
 d'un hop reste au-dessus de 80 % du budget pendant une seconde, le
 décomposeur passe à 5 itérations / ensemble actif 40 (1,0 ms, 38 %) et
 revient sous 45 % ; la carte affiche **ÉCO** en ambre à côté du CPU. Mesuré
-dans le worklet surchargé : bascule au hop ~390, coût 3,7 → 1,1 ms.
+dans le worklet surchargé : bascule au hop ~390, coût 3,7 → 1,1 ms. Son prix
+sur le banc : −1,0 point de F1 en solo, −2,8 sur les doubles, −5,3 sur les
+triades, −3,5 de précision par rapport au réglage livré — un mode de
+secours, préférable aux décrochages audio, pas un réglage de croisière.
 
 Le dense reste disponible (`DECOMP='{"sparse":0,"iter":15}' node
 test/poly-dump-events.mjs …`) pour l'équivalence exacte.
