@@ -1,7 +1,13 @@
 // GUITAR → MIDI input: captures an audio input (interface or mic) with every
-// browser "smart" processing switched off, runs the tracker in an AudioWorklet
+// browser "smart" processing switched off, runs a tracker in an AudioWorklet
 // on the audio thread, and turns its events into note-on/off and pitch bend —
 // exactly like a MIDI keyboard would.
+//
+// Two engines, chosen by `mode` (state.guitar.mode):
+//   mono  js/audio/guitar/tracker.js — one note at a time, follows bends
+//   poly  js/audio/guitar/poly/engine.js — several strings at once (beta),
+//         no pitch bend yet; its template bank is rendered here, on the main
+//         thread, and handed to the worklet
 //
 // Latency budget, in order of size (see docs/guitar-to-midi.md):
 //   1. the tracker itself: 1-2 periods of the note + the pick transient
@@ -14,6 +20,8 @@
 // biggest chunk, the rest needs ASIO/CoreAudio from a native helper.
 
 import { GuitarTracker } from '../audio/guitar/tracker.js';
+import { PolyTracker } from '../audio/guitar/poly/engine.js';
+import { buildBank } from '../audio/guitar/poly/bank.js';
 import { captureOpened, captureClosed } from '../util.js';
 
 const WORKLET_URL = new URL('../audio/guitar/worklet.js', import.meta.url);
@@ -21,27 +29,41 @@ const WORKLET_URL = new URL('../audio/guitar/worklet.js', import.meta.url);
 export function createGuitarInput(ctx, handlers) {
   let running = false, starting = false;
   let stream = null, src = null, gainNode = null, node = null, mute = null;
-  let fallback = null;           // GuitarTracker on the main thread (no worklet)
+  let fallback = null;           // tracker on the main thread (no worklet)
   let workletReady = null;       // Promise, resolved once addModule succeeded
   let params = {};
+  let mode = 'mono';
+  let bank = null;               // POLY template bank, built once on demand
+  let bankSent = false;          // ... already handed to the current worklet node
+  let profile = null;            // calibrated profile the bank is rendered from (null = generic)
+  let onAudio = null;            // raw-input listener while the calibration assistant runs
   let gain = 1;
   let devices = [];
   let deviceId = '';
   let status = { key: 'off', detail: '' };
   let inputLatency = NaN;
-  let sounding = -1;             // note currently held by the tracker, or -1
+  const sounding = new Set();    // notes currently held by the tracker
 
   const setStatus = (key, detail = '') => {
     status = { key, detail };
     handlers.status && handlers.status(status);
   };
 
+  // `sounding` is the truth about what this input holds in the host. A
+  // note-off whose midi is not held (the MONO tracker applies the octave shift
+  // at emit time, so a shift change mid-note mislabels its own note-off)
+  // releases the note actually held instead, so nothing can stay stuck.
   function dispatch(events) {
     for (const e of events) {
-      if (e.t === 'on') { sounding = e.midi; handlers.noteOn(e.midi, e.vel); }
-      else if (e.t === 'off') { if (sounding === e.midi) sounding = -1; handlers.noteOff(e.midi); }
+      if (e.t === 'on') { sounding.add(e.midi); handlers.noteOn(e.midi, e.vel); }
+      else if (e.t === 'off') {
+        if (sounding.has(e.midi)) { sounding.delete(e.midi); handlers.noteOff(e.midi); }
+        else if (mode === 'mono' && sounding.size) { for (const m of sounding) handlers.noteOff(m); sounding.clear(); }
+      }
       else if (e.t === 'bend') handlers.bend(e.semis);
       else if (e.t === 'meter') handlers.meter && handlers.meter(e);
+      else if (e.t === 'mode') handlers.mode && handlers.mode(e.mode);
+      else if (e.t === 'audio') { if (onAudio) onAudio(e.data); }
     }
   }
 
@@ -65,6 +87,43 @@ export function createGuitarInput(ctx, handlers) {
       });
     }
     return workletReady;
+  }
+
+  function polyBank() {
+    if (!bank) bank = profile ? buildBank('medium', { bLaw: profile.bLaw, prof: profile.prof }) : buildBank('medium');   // ~50 ms
+    return bank;
+  }
+
+  /** Renders the POLY bank from a calibrated profile (null = generic) and hands it to the running engine. */
+  function setProfile(p) {
+    profile = p || null;
+    bank = null;
+    bankSent = false;
+    if (!running || mode !== 'poly') return;
+    if (fallback) {
+      dispatch(fallback.flush());
+      fallback = makeFallback();
+    } else if (node && node.port) {
+      node.port.postMessage({ bank: polyBank() });
+      bankSent = true;
+    }
+  }
+
+  /** Streams the raw input (blocks of the context rate) to `fn` until stopCapture(). */
+  function startCapture(fn) {
+    onAudio = fn;
+    if (node && node.port && !fallback) node.port.postMessage({ capture: true });
+  }
+
+  function stopCapture() {
+    onAudio = null;
+    if (node && node.port && !fallback) node.port.postMessage({ capture: false });
+  }
+
+  function makeFallback() {
+    return mode === 'poly'
+      ? new PolyTracker(ctx.sampleRate, { ...params, bank: polyBank() })
+      : new GuitarTracker(ctx.sampleRate, params);
   }
 
   async function start(id = deviceId) {
@@ -113,19 +172,26 @@ export function createGuitarInput(ctx, handlers) {
       let compat = false;
       try {
         await loadWorklet();
+        const processorOptions = { params, mode };
+        if (mode === 'poly') processorOptions.bank = polyBank();
         node = new AudioWorkletNode(ctx, 'jamrack-guitar-tracker', {
           numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
           channelCount: 1, channelCountMode: 'explicit',
-          processorOptions: { params },
+          processorOptions,
         });
+        bankSent = mode === 'poly';
         node.port.onmessage = e => dispatch(e.data);
       } catch (err) {
         // Old browser: the same tracker on the main thread. Works, with the
         // extra jitter of a 256-sample ScriptProcessor.
         console.warn('Guitar tracker: AudioWorklet unavailable, using ScriptProcessor', err && err.message);
-        fallback = new GuitarTracker(ctx.sampleRate, params);
+        fallback = makeFallback();
         node = ctx.createScriptProcessor(256, 1, 1);
-        node.onaudioprocess = ev => dispatch(fallback.process(ev.inputBuffer.getChannelData(0)));
+        node.onaudioprocess = ev => {
+          const data = ev.inputBuffer.getChannelData(0);
+          dispatch(fallback.process(data));
+          if (onAudio) onAudio(Float32Array.from(data));
+        };
         compat = true;
       }
       src.connect(gainNode);
@@ -162,16 +228,22 @@ export function createGuitarInput(ctx, handlers) {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = src = gainNode = node = mute = null;
     fallback = null;
+    bankSent = false;
     captureClosed('guitar');
+  }
+
+  function releaseAll() {
+    // The main thread knows the held notes (it dispatched them), so no round
+    // trip to the worklet is needed.
+    for (const m of sounding) handlers.noteOff(m);
+    sounding.clear();
+    handlers.bend(0);
   }
 
   function stop() {
     if (!running) return;
     running = false;
-    // Release whatever note is sounding before the graph goes away. The main
-    // thread knows it (it dispatched it), so no round trip to the worklet.
-    if (sounding >= 0) { handlers.noteOff(sounding); sounding = -1; }
-    handlers.bend(0);
+    releaseAll();
     teardown();
     handlers.running && handlers.running(false);
     setStatus('off');
@@ -181,6 +253,23 @@ export function createGuitarInput(ctx, handlers) {
     params = { ...params, ...p };
     if (fallback) fallback.setParams(p);
     else if (node && node.port) node.port.postMessage({ params: p });
+  }
+
+  /** Switches the engine ('mono' | 'poly'); the held notes are released. */
+  function setMode(m) {
+    if (m !== 'mono' && m !== 'poly') m = 'mono';
+    if (m === mode) return;
+    mode = m;
+    if (!running) return;
+    if (fallback) {
+      dispatch(fallback.flush());
+      fallback = makeFallback();
+      handlers.mode && handlers.mode(mode);
+    } else if (node && node.port) {
+      const msg = { mode };
+      if (mode === 'poly' && !bankSent) { msg.bank = polyBank(); bankSent = true; }
+      node.port.postMessage(msg);   // the worklet flushes, switches and reports
+    }
   }
 
   function setGain(v) {
@@ -193,8 +282,10 @@ export function createGuitarInput(ctx, handlers) {
   }
 
   return {
-    start, stop, setParams, setGain,
+    start, stop, setParams, setMode, setGain, setProfile, startCapture, stopCapture,
     get running() { return running; },
+    get mode() { return mode; },
+    get profile() { return profile; },
     get devices() { return devices; },
     get deviceId() { return deviceId; },
     get status() { return status; },

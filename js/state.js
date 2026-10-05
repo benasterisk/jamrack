@@ -79,6 +79,8 @@ export function defaultGuitar() {
     dyn: 0.7,           // 0..1 velocity dynamics
     bend: true,         // bends/vibrato become pitch bend (false = chromatic)
     octave: 0,          // -2..2
+    mode: 'mono',       // 'mono' | 'poly' (beta): which tracker runs
+    profileId: null,    // POLY bank profile saved by the calibration assistant (null = generic)
     collapsed: false,
   };
 }
@@ -172,6 +174,7 @@ function defaultState() {
     },
     metronome: { bpm: 100, on: false },
     guitar: defaultGuitar(),
+    audio: { buffer: 'min' },   // AudioContext buffer: 'min' | 'balanced' | 'safe' (applied at page load)
     looper: defaultLooper(),
     customBanks: [],
     // low: lowest note shown on the piano (C3).
@@ -209,6 +212,7 @@ function load() {
     Object.assign(st.metronome, saved.metronome || {});
     st.metronome.on = false;
     Object.assign(st.guitar, saved.guitar || {});
+    Object.assign(st.audio, saved.audio || {});
     if (saved.looper && typeof saved.looper === 'object') {
       const { tracks, ...rest } = saved.looper;
       Object.assign(st.looper, rest);
@@ -255,6 +259,7 @@ const scheduleSave = debounce(() => {
       kb: state.kb,
       metronome: { bpm: state.metronome.bpm, on: false },
       guitar: state.guitar,
+      audio: state.audio,
       looper: state.looper,
       customBanks: state.customBanks,
       view: state.view,

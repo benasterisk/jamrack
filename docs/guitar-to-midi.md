@@ -150,3 +150,29 @@ guitar → interface → [helper: ASIO / CoreAudio / ALSA @ 64 samples → track
 Dev test of the native helper needs real hardware (an interface and a guitar),
 which the cloud session used to build this did not have; its DSP core, however,
 can be validated against the same test signals before any hardware.
+
+
+## Interfaces de streaming (Gigcaster, etc.) : couper la boucle USB
+
+Constaté le 5 octobre 2026 avec une BOSS Gigcaster 5 : en mode USB « 2 MIX »,
+l'entrée que reçoit le PC (USB MAIN) est le mixage complet, *canal USB
+compris* — c'est-à-dire la sortie du PC lui-même. JamRack entend alors son
+propre synthé, le redétecte, et les notes tournent toutes seules ; la
+précision s'effondre (guitare + synthé mélangés). Même symptôme sur le site
+public : ce n'est pas le code.
+
+Réglage qui marche (manuel de référence GCS-5, p. 13 et 31) :
+
+1. MENU → SETUP → USB → **AUDIO MODE = MTK-STREAM** (multipiste, pilote dédié).
+2. Canal USB → GENERAL → **MIX MINUS = ON** (le mixage renvoyé au PC exclut
+   le canal USB).
+3. Bouton Suivi (casque) du canal USB allumé : le synthé reste dans le casque.
+4. Dans JamRack, menu d'entrée de la carte : le **canal GUITAR** brut, pas
+   USB MAIN ni USB MONITOR. EFFECTS du canal guitare éteints (un ampli
+   simulé ou une compression trompe le traqueur).
+
+Craquements : le tampon de la page (sélecteur TAMPON de la carte : minimum
+10 ms, équilibré 20 ms, sûr 30 ms, appliqué au rechargement) et celui du
+pilote (menu Démarrer → BOSS → GCS-5 Driver → GCS-5, « GCS-5 Driver
+Settings », curseur « Taille de la mémoire tampon », 6e cran par défaut) se
+cumulent ; monter le pilote d'un cran suffit souvent.

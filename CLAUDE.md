@@ -16,8 +16,9 @@ aux changements de session. Détails : `docs/local-setup.md`.
   `routeNoteOn / routeNoteOff / routeBend` dans `js/main.js` (bend global
   seulement, pour l'instant). Moteur : `js/audio/engine.js` (bus `dry` →
   master ; `latencyHint: 0` sur desktop).
-- Tests : `node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs`
-  (31 tests, ~16 s, Node 20+).
+- Tests : `node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs
+  test/poly-engine.test.mjs test/poly-calibrate.test.mjs` (43 tests, ~30 s,
+  Node 20+).
 - Le propriétaire (benasterisk) ne code pas lui-même : il dirige, teste à la
   guitare et décide du périmètre. Répondre **en français**, sans jargon
   inutile, avec des chiffres mesurés plutôt que des promesses.
@@ -74,19 +75,51 @@ aux changements de session. Détails : `docs/local-setup.md`.
   53,5 % (seuil 60), précision 81,8 % (réussi). Limite identifiée : la règle
   de note par hop (`test/poly/notes.py`), pas le décomposeur (99 % des notes
   de doubles reçoivent une activation suffisante).
-- **Rien de POLY n'est dans l'application** (`js/`) : ni sélecteur, ni
-  moteur JS, ni assistant.
-- **Décision prise le 5 octobre (plan §14) : option 2.** Construire le
-  moteur POLY temps réel maintenant avec un périmètre honnête : POLY
-  « bêta » derrière le sélecteur, MONO par défaut, « notes seules mieux que
-  MONO, doubles et triades au mieux ». Travail sur la branche `feature/poly`,
-  PR vers `main` quand la bêta est utilisable.
-- Jalons (plan §14) : 1. portage JS de la configuration fusionnée dans le
-  worklet (`fft.js`, `templates.js`, NMF β 0,5, 60 gabarits actifs,
-  15 itérations, λ 400 ; coût numpy 1,17 ms par hop, **à mesurer en JS**,
-  budget 2,67 ms) avec équivalence Python ↔ JS ; 2. intégration
-  (`state.guitar.mode` + sélecteur, bend par note, CPU/TRK, i18n) ;
-  3. assistant de calibration ; 4. vérification puis PR.
+- **Fait le 5 octobre (jalons 1 et 2, première partie), détail et chiffres
+  dans `docs/poly-implementation.md`** : moteur POLY JS dans
+  `js/audio/guitar/poly/` (profil mesuré, FFT, rééchantillonneur identique à
+  scipy, banque fitatt rendue dans le navigateur, β-NMF, règle de notes,
+  `PolyTracker` dans `engine.js`). Équivalence prouvée sur les **six jeux** du banc
+  (solo, comp, mix2, mix3, hex2, hex3 ; 13 624 notes) : le décomposeur dense
+  donne **13 624 notes sur 13 624 identiques** au prototype Python (onsets,
+  fins, vélocités, mêmes scores) ; la porte §12 reste non franchie, comme
+  pour le prototype (doubles 57,9 %, triades 45,2 %, précision 78,2 %). Coût : le dense et même le clairsemé 1e-4 / 15 it. ont
+  saturé le fil audio en usage réel (2,65-4,05 ms par hop de 2,67 ms, synthé
+  saccadé, constaté par le propriétaire le 5 octobre au matin). **Livré :
+  clairsemé τ = 1e-3, 8 itérations** (`DECOMPOSER`, 1,1 ms Node / 1,62 ms
+  worklet = 61 %, −0,1 pt F1 solo, −1,6 pt triades sur le banc) + **mode ÉCO
+  automatique** (5 it. / actif 40 quand le hop dépasse 80 % du budget une
+  seconde, retour sous 45 %, tag ÉCO sur la carte ; coût 0,39 ms, −1 pt F1 solo,
+  −5 pt triades : secours seulement). POLY ne réagit qu'aux
+  attaques pincées (une voix ne déclenche rien : normal, documenté). `state.guitar.mode` ('mono' par défaut |
+  'poly'), sélecteur MONO / POLY β sur la carte, worklet qui bascule de
+  moteur (banque rendue sur le fil principal), CPU et nombre de voix
+  affichés, manuel et i18n 12 langues. Outils : `test/poly-dump-events.mjs`
+  (moteur JS sur GuitarSet, format dump-events, coût par hop),
+  `test/poly-engine.test.mjs` (8 tests ; 39 au total avec les deux autres
+  fichiers), `test/poly/export-profile.py` (régénère `profile.js`).
+- **Jalon 3 fait (5-6 octobre)** : assistant de calibration
+  (`js/audio/guitar/poly/calibrate.js` + `js/ui/calibration.js`), profils
+  IndexedDB (`profiles.js`, export/import), menu PROFIL et bouton CALIBRER
+  sur la carte, `state.guitar.profileId`, relais audio et échange de banque
+  dans le worklet. Non testé avec un vrai micro (session automatisée).
+- **Essai du propriétaire, 5 octobre (guitare dans une BOSS Gigcaster 5)** :
+  après coupure de la boucle USB (voir `docs/guitar-to-midi.md`, « Interfaces
+  de streaming »), MONO OK et **POLY « mieux qu'espéré »**. Les symptômes du
+  matin (précision nulle, notes qui tournent toutes seules, même sur le site
+  public) venaient de la Gigcaster qui renvoyait la sortie du PC dans
+  l'entrée, pas du code. Craquements réglés par le tampon (TAMPON sur la
+  carte + panneau « GCS-5 Driver Settings »). Calibration pas encore essayée
+  avec la guitare.
+- **Pas fait** : bend par note (le prototype ne donne pas de hauteur continue
+  par voix, POLY n'émet aucun bend), PR vers `main` (décision du
+  propriétaire : la bêta est jugée utilisable).
+- **Décision prise le 5 octobre (plan §14) : option 2.** POLY « bêta »
+  derrière le sélecteur, MONO par défaut, « notes seules mieux que MONO,
+  doubles et triades au mieux ». Branche `feature/poly`, PR vers `main`
+  quand la bêta est utilisable.
+- Données locales du propriétaire : GuitarSet complet (hex compris) dans
+  `D:\guitarset` ; `mir_eval` installé.
 
 ## Conventions et pièges
 
