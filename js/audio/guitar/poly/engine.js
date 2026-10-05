@@ -37,12 +37,18 @@ export const POLY_DEFAULTS = {
   transpose: 0,       // semitones added to the detected note
 };
 
-/** Decomposer settings (params-merged.json). Exported mutable for ablations.
- *  `sparse` 1e-4 is what ships: in Chrome's worklet the dense arithmetic of
- *  the prototype costs 2.6 ms per 2.67 ms hop, the sparse bank 1.5 ms, for
- *  7 of 3868 bench notes moved by one hop and one lost (docs/poly-implementation.md);
- *  `sparse` = 0 restores the exact prototype arithmetic (see nmf.js). */
-export const DECOMPOSER = { active: 60, iter: 15, lambda: 400, initSal: 0, sparse: 1e-4 };
+/** Decomposer settings. Exported mutable for ablations (test/poly-dump-events.mjs).
+ *  The prototype ran dense / 15 iterations; shipping is sparse 1e-3 / 8
+ *  iterations, 2.4x cheaper for -0.1 pt F1 on single notes and -1.6 pt on
+ *  triads over the 13 624-note bench (docs/poly-implementation.md). ECO is
+ *  the emergency setting the engine falls back to while the audio thread
+ *  saturates (see PolyTracker.eco); `sparse` 0 = exact prototype arithmetic. */
+export const DECOMPOSER = { active: 60, iter: 8, lambda: 400, initSal: 0, sparse: 1e-3 };
+export const ECO = { iter: 5, active: 40 };
+// Load control: the hop cost (exponential average) against the hop budget.
+// Above ECO_IN for ECO_HOLD hops the decomposer drops to ECO; below ECO_OUT
+// for ECO_HOLD hops it comes back. Hysteresis keeps it from flapping.
+const ECO_IN = 0.80, ECO_OUT = 0.45, ECO_HOLD = 375;   // 375 hops = 1 s
 
 const FLUX_LAG = 3;
 const FLUX_LO = 4, FLUX_HI = 427;        // bins: 47 Hz .. 5 kHz
@@ -99,6 +105,10 @@ export class PolyTracker {
     this.nmfMs = 0;           // exponential average of the decomposer cost per hop
     this.hopMs = 0;           // ... of the whole hop
     this.maxHopMs = 0;
+    this.eco = false;         // decomposer running at the ECO setting (overload)
+    this.autoEco = params.autoEco !== false;
+    this._ecoCount = 0;
+    this._full = { iter: this.decomposer.iter, active: this.decomposer.active };
     this._out = [];
     this._raw = [];
     this._onSample = s => this._sample(s);
@@ -216,10 +226,31 @@ export class PolyTracker {
     this.nmfMs += (nmfMs - this.nmfMs) * 0.05;
     this.hopMs += (hopMs - this.hopMs) * 0.05;
     if (hopMs > this.maxHopMs) this.maxHopMs = hopMs;
+    if (this.autoEco) this._loadControl();
     if (t % METER_EVERY === 0) {
-      this._out.push({ t: 'meter', db: level, hop: t, nmfMs: this.nmfMs, hopMs: this.hopMs, voices: this.rule.voices.size });
+      this._out.push({ t: 'meter', db: level, hop: t, nmfMs: this.nmfMs, hopMs: this.hopMs, voices: this.rule.voices.size, eco: this.eco });
     }
     this.hop = t + 1;
+  }
+
+  /** Drops to the ECO decomposer while the hop cost saturates the budget, and back. */
+  _loadControl() {
+    const budget = 1000 * HOP / SR;
+    const ratio = this.hopMs / budget;
+    if (!this.eco && ratio > ECO_IN) {
+      if (++this._ecoCount >= ECO_HOLD) this.setEco(true);
+    } else if (this.eco && ratio < ECO_OUT) {
+      if (++this._ecoCount >= ECO_HOLD) this.setEco(false);
+    } else {
+      this._ecoCount = 0;
+    }
+  }
+
+  setEco(on) {
+    this.eco = !!on;
+    this._ecoCount = 0;
+    this.decomposer.iter = on ? ECO.iter : this._full.iter;
+    this.decomposer.active = on ? ECO.active : this._full.active;
   }
 
   _emit(raw) {

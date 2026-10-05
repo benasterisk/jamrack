@@ -323,7 +323,8 @@ export function createRack(container, api) {
       gtr.centsEl.classList.remove('heard', 'intune');
       gtr.centsEl.style.setProperty('--c', '0');
       const cpu = Math.round(100 * info.hopMs / (1000 * 64 / 24000));
-      gtr.lat.innerHTML = `IN <b>${ms(lat.input)}</b> · OUT <b>${ms(lat.output)}</b> ms · ${esc(t('gtrCpu'))} <b>${cpu}</b> %`;
+      gtr.lat.innerHTML = `IN <b>${ms(lat.input)}</b> · OUT <b>${ms(lat.output)}</b> ms · ${esc(t('gtrCpu'))} <b>${cpu}</b> %`
+        + (info.eco ? ` · <b class="gtr-eco" title="${esc(t('gtrTitleEco'))}">${esc(t('gtrEco'))}</b>` : '');
       return;
     }
     const heard = !Number.isNaN(info.midiF);

@@ -1552,3 +1552,4 @@ select optgroup {
   body.m-edit .gtr-mode button { padding: 8px 12px; font-size: 13px; }
   body.m-edit .btn-calibrate { min-height: 40px; }
 }
+.gtr-eco { color: var(--amber) !important; letter-spacing: .1em; }
