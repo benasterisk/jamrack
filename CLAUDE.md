@@ -103,9 +103,17 @@ aux changements de session. Détails : `docs/local-setup.md`.
   IndexedDB (`profiles.js`, export/import), menu PROFIL et bouton CALIBRER
   sur la carte, `state.guitar.profileId`, relais audio et échange de banque
   dans le worklet. Non testé avec un vrai micro (session automatisée).
+- **Essai du propriétaire, 5 octobre (guitare dans une BOSS Gigcaster 5)** :
+  après coupure de la boucle USB (voir `docs/guitar-to-midi.md`, « Interfaces
+  de streaming »), MONO OK et **POLY « mieux qu'espéré »**. Les symptômes du
+  matin (précision nulle, notes qui tournent toutes seules, même sur le site
+  public) venaient de la Gigcaster qui renvoyait la sortie du PC dans
+  l'entrée, pas du code. Craquements réglés par le tampon (TAMPON sur la
+  carte + panneau « GCS-5 Driver Settings »). Calibration pas encore essayée
+  avec la guitare.
 - **Pas fait** : bend par note (le prototype ne donne pas de hauteur continue
-  par voix, POLY n'émet aucun bend), essai à la guitare par le propriétaire
-  (MONO inchangé, POLY, calibration), PR vers `main`.
+  par voix, POLY n'émet aucun bend), PR vers `main` (décision du
+  propriétaire : la bêta est jugée utilisable).
 - **Décision prise le 5 octobre (plan §14) : option 2.** POLY « bêta »
   derrière le sélecteur, MONO par défaut, « notes seules mieux que MONO,
   doubles et triades au mieux ». Branche `feature/poly`, PR vers `main`
