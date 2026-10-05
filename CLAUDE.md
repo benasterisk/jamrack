@@ -25,16 +25,18 @@ aux changements de session. Détails : `docs/local-setup.md`.
 
 ## Branches
 
-- `main` : site public jamrack.openmindlab.fr. Contient **tout** le travail
-  guitare/looper depuis la fusion de la PR #1 (`52b6cc8`, 5 octobre 2026).
-  Les fusions vers `main` passent par une PR.
-- `feature/poly` : branche de travail de l'option 2 (moteur POLY temps réel).
-  Toujours commiter et pousser ici (`git push -u origin feature/poly`).
+- `main` : site public jamrack.openmindlab.fr. Contient tout le travail
+  guitare/looper (PR #1, `52b6cc8`) **et POLY bêta + calibration + tampon
+  audio (PR #2, `0c10765`, 5 octobre 2026)**. Les fusions vers `main`
+  passent par une PR.
+- `feature/poly` : branche de travail POLY, fusionnée dans `main` par la
+  PR #2 ; la suite du travail POLY continue ici (`git push -u origin
+  feature/poly`) et repasse par une PR.
 - `feature/guitar-to-midi` : fusionnée dans `main` par la PR #1 ; ne plus y
   commiter.
 - `gh-pages` : page de test HTTPS https://benasterisk.github.io/jamrack/
   (micro autorisé, contrairement aux artefacts). Synchronisée avec `main` au
-  commit `52b6cc8`. Rafraîchir : `git checkout gh-pages && git merge main &&
+  commit `52b6cc8` (pas encore avec la PR #2). Rafraîchir : `git checkout gh-pages && git merge main &&
   git push && git checkout -`.
 
 ## Livré (sur `main`)

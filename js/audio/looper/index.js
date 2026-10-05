@@ -219,7 +219,7 @@ export function createLooper(engine, handlers, opts = {}) {
       const soloChanged = 'solo' in p;
       if (soloChanged) for (let k = 0; k < TRACKS; k++) applyTrack(k); else applyTrack(i);
       const core = {};
-      for (const k of ['reverse', 'half', 'feedback']) if (k in p) core[k] = p[k];
+      for (const k of ['reverse', 'half', 'feedback', 'paused']) if (k in p) core[k] = p[k];
       if (Object.keys(core).length) post({ cmd: 'track', i, params: core });
     },
     setSource,

@@ -68,6 +68,7 @@ export class LooperCore {
         written: 0,                // frames written in the current pass
         tail: 0,                   // frames still to write after the pass ended (latency)
         reverse: false, half: false, feedback: 1, mute: false,
+        paused: false,             // PAUSE: the track is silent and records nothing; resumes in sync
         rh: 0,                     // read head for half speed (fractional)
         rms: 0,
       });
@@ -94,6 +95,12 @@ export class LooperCore {
     if (p.mute !== undefined) t.mute = !!p.mute;
     if (p.half !== undefined && !!p.half !== t.half) { t.half = !!p.half; t.rh = this.pos; }
     if (p.reverse !== undefined) t.reverse = !!p.reverse;
+    if (p.paused !== undefined && !!p.paused !== t.paused) {
+      t.paused = !!p.paused;
+      // pausing ends a recording/overdub pass: the track keeps what it has
+      if (t.paused && (t.mode === 'rec' || t.mode === 'dub')) { this._endPass(t, 'play'); this._emitTrack(i); }
+      this._emit({ t: 'pause', i, paused: t.paused });
+    }
   }
 
   /** The track button: REC → DUB → PLAY → DUB … (see the header). */
@@ -351,7 +358,7 @@ export class LooperCore {
           }
         }
         // read
-        if (!this.running || t.mute) continue;
+        if (!this.running || t.mute || t.paused) continue;
         let ol, or;
         if (t.half) {
           const a = t.rh | 0, b = (a + 1) % len, f = t.rh - a;
