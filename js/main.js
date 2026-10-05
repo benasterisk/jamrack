@@ -29,7 +29,7 @@ import {
 } from './i18n/index.js';
 import { clamp, formatTime, debounce, esc } from './util.js';
 
-const engine = new Engine();
+const engine = new Engine({ buffer: state.audio.buffer });
 const metronome = new Metronome(engine);
 const recorder = new Recorder(engine);
 const audios = new Map(); // instance.id -> Instrument

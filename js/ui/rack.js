@@ -217,12 +217,22 @@ export function createRack(container, api) {
     });
     // MONO-only controls are dimmed in POLY (the engine ignores them)
     const monoOnly = node => { node.classList.add('gtr-mono-only'); return node; };
+    const bufSel = el(`<div class="stepper"><select class="sel-bank sel-buffer" title="${esc(t('audioBufferTitle'))}">${
+      ['min', 'balanced', 'safe'].map(v => `<option value="${v}" ${state.audio.buffer === v ? 'selected' : ''}>${esc(t('audioBuffer' + v[0].toUpperCase() + v.slice(1)))}</option>`).join('')
+    }</select><span class="stepper-lab">${esc(t('audioBuffer'))}</span></div>`);
+    bufSel.querySelector('select').addEventListener('change', e => {
+      state.audio.buffer = e.target.value;
+      emit('audio');
+      // the AudioContext buffer is fixed at creation: a reload applies it
+      setTimeout(() => { if (confirm(t('audioBufferReload'))) location.reload(); }, 450);
+    });
     body.appendChild(section(t('gtrInput'), row(
       createKnob({ label: t('gtrGain'), value: g.gain, min: 0.1, max: 10, def: 1, curve: 'log',
         format: v => `${v >= 1 ? '+' : ''}${Math.round(20 * Math.log10(v))}dB`,
         onInput: v => { g.gain = v; changed(); } }).el,
       monoOnly(createKnob({ label: t('gtrSens'), value: g.sens, def: 0.5, format: fmtPct,
         onInput: v => { g.sens = v; changed(); } }).el),
+      bufSel,
     )));
 
     const notesRow = row(
