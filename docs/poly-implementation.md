@@ -54,6 +54,11 @@ Assistant de calibration (jalon 3) :
   reconstruit son moteur sur la nouvelle banque sans arrêter l'entrée. Le
   signal brut est relayé par le worklet (`{ capture }`, blocs de 2048).
 
+À savoir : POLY n'ouvre une décision que sur une **attaque** (hausse de
+niveau de 6 dB en 8-16 ms + flux spectral) : une voix chantée ou une note
+frottée ne déclenche rien, par construction (MONO a une détection « swell »
+pour cela). Le manuel le dit.
+
 Pas encore fait (plan §14) : bend par note (`routeNoteBend`) — le prototype
 ne produit pas de hauteur continue par voix, le moteur n'émet donc aucun
 bend en POLY ; essai à la guitare par le propriétaire (calibration comprise :
@@ -134,11 +139,39 @@ imprime le coût par prise ; numpy mono-fil mesuré par `merge.py time`) :
 | JS clairsemé τ = 1e-4 (417 bins/colonne) | 0,91 (0,96 sur les 24 solo) | **1,52** | 13 591 identiques, 31 à ±1 hop, 2 manquantes, 1 en trop ; scores identiques à ±0,1 pt |
 | JS clairsemé τ = 1e-3 (248 bins/colonne) | 0,63 | — | non retenu : dérive des activations jusqu'à 24 % |
 
-**Réglage retenu pour l'application : clairsemé τ = 1e-4** (`DECOMPOSER.sparse`
-dans `engine.js`), 57 % du budget sur ce PC ; le dense coûte le budget entier
-dans le worklet et ne laisse rien aux téléphones. Le dense reste disponible
-(`DECOMP='{"sparse":0}' node test/poly-dump-events.mjs …`) pour l'équivalence
-exacte.
+**Premier réglage livré : clairsemé τ = 1e-4, 15 itérations** (57 % du
+budget au repos). **Insuffisant en usage réel** : le 5 octobre au matin, le
+propriétaire (voix dans le micro, synthé qui joue) a vu le CPU dépasser
+100 % et le synthé saccader ; remesuré alors dans le worklet : **2,65 à
+4,05 ms par hop** (la machine n'était plus au repos, et le synthé, la
+réverb et le looper partagent le même fil audio, que le chiffre de la nuit
+ne comptait pas). Six variantes moins coûteuses ont donc été scorées sur
+les six jeux (même banc, 13 624 notes) :
+
+| variante | ms/hop (Node, même session) | F1 solo | doubles groupés | triades | précision |
+|---|---|---|---|---|---|
+| τ 1e-4, 15 it. (1er livré) | 2,65 | 80,8 | 57,9 | 45,2 | 78,2 |
+| τ 1e-3, 15 it. | 1,86 | 80,8 | 57,8 | 44,9 | 78,2 |
+| τ 1e-4, 10 it. | 1,86 | 80,7 | 57,4 | 44,6 | 78,0 |
+| τ 1e-4, 8 it. | 1,61 | 80,7 | 57,1 | 43,8 | 77,7 |
+| τ 1e-4, 15 it., actif 40 | 2,04 | 81,0 | 57,9 | 43,9 | 77,1 |
+| **τ 1e-3, 8 it. (livré)** | **1,10** | 80,7 | 57,0 | 43,6 | 77,8 |
+| τ 1e-4, 10 it., actif 40 | 1,47 | 80,6 | 57,2 | 42,5 | 76,3 |
+| ÉCO : τ 1e-3, 5 it., actif 40 | *(à compléter)* | | | | |
+
+**Réglage retenu : clairsemé τ = 1e-3, 8 itérations** (`DECOMPOSER` dans
+`engine.js`) : coût divisé par 2,4 pour −0,1 point de F1 en solo et
+−1,6 point sur les triades. Dans le worklet, au même moment : **1,62 ms par
+hop (61 %)** là où le réglage précédent coûtait 4,05 ms (152 %).
+
+**Mode ÉCO automatique** (`PolyTracker._loadControl`) : si le coût moyen
+d'un hop reste au-dessus de 80 % du budget pendant une seconde, le
+décomposeur passe à 5 itérations / ensemble actif 40 (1,0 ms, 38 %) et
+revient sous 45 % ; la carte affiche **ÉCO** en ambre à côté du CPU. Mesuré
+dans le worklet surchargé : bascule au hop ~390, coût 3,7 → 1,1 ms.
+
+Le dense reste disponible (`DECOMP='{"sparse":0,"iter":15}' node
+test/poly-dump-events.mjs …`) pour l'équivalence exacte.
 
 « Clairsemé τ » : seules les cases d'une colonne au-dessus de τ fois son
 maximum sont gardées (les lobes secondaires du noyau de Hann décroissent en

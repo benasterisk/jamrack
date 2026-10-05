@@ -83,10 +83,14 @@ aux changements de session. Détails : `docs/local-setup.md`.
   (solo, comp, mix2, mix3, hex2, hex3 ; 13 624 notes) : le décomposeur dense
   donne **13 624 notes sur 13 624 identiques** au prototype Python (onsets,
   fins, vélocités, mêmes scores) ; la porte §12 reste non franchie, comme
-  pour le prototype (doubles 57,9 %, triades 45,2 %, précision 78,2 %). Le dense coûte 2,6 ms par hop de 2,67 ms dans le worklet de
-  Chrome : l'application utilise la banque **clairsemée τ = 1e-4**
-  (`DECOMPOSER.sparse`, 1,5 ms/hop ; sur 13 624 notes : 31 décalées d'un hop,
-  2 manquantes, 1 en trop, scores identiques à ±0,1 pt). `state.guitar.mode` ('mono' par défaut |
+  pour le prototype (doubles 57,9 %, triades 45,2 %, précision 78,2 %). Coût : le dense et même le clairsemé 1e-4 / 15 it. ont
+  saturé le fil audio en usage réel (2,65-4,05 ms par hop de 2,67 ms, synthé
+  saccadé, constaté par le propriétaire le 5 octobre au matin). **Livré :
+  clairsemé τ = 1e-3, 8 itérations** (`DECOMPOSER`, 1,1 ms Node / 1,62 ms
+  worklet = 61 %, −0,1 pt F1 solo, −1,6 pt triades sur le banc) + **mode ÉCO
+  automatique** (5 it. / actif 40 quand le hop dépasse 80 % du budget une
+  seconde, retour sous 45 %, tag ÉCO sur la carte). POLY ne réagit qu'aux
+  attaques pincées (une voix ne déclenche rien : normal, documenté). `state.guitar.mode` ('mono' par défaut |
   'poly'), sélecteur MONO / POLY β sur la carte, worklet qui bascule de
   moteur (banque rendue sur le fil principal), CPU et nombre de voix
   affichés, manuel et i18n 12 langues. Outils : `test/poly-dump-events.mjs`
