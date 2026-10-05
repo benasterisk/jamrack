@@ -116,39 +116,52 @@ export function setupCalibration(api) {
     return t(at12 ? 'calStringFret12' : 'calStringOpen', n, noteName(midi));
   }
 
-  function renderStep(status, extra = '') {
+  function renderStep() {
     const done = open.filter(r => r && r.ok).length;
     body.innerHTML = `
       <div class="cal-progress">${esc(t('calProgress', done, 6))}${step.fret12 ? ' · 12' : ''}</div>
       <div class="cal-string">${esc(stringLabel(step.s, step.fret12))}</div>
       <div class="cal-meter"><i></i></div>
-      <div class="cal-status ${status}">${extra}</div>
+      <div class="cal-status wait"></div>
+      <div class="cal-hint small"></div>
       <div class="cal-actions">
-        <button class="tb-btn cal-retry">${esc(t('calRetry'))}</button>
+        <button class="tb-btn cal-retry" hidden>${esc(t('calRetry'))}</button>
+        <button class="tb-btn cal-next" hidden>${esc(t('calNext'))}</button>
         <button class="tb-btn cal-skip">${esc(t('calSkip'))}</button>
       </div>`;
     body.querySelector('.cal-retry').addEventListener('click', () => startStep(step.s, step.fret12));
     body.querySelector('.cal-skip').addEventListener('click', () => advance(null));
   }
 
+  // One string: wait for silence, arm, capture the pluck, show the result and
+  // let the user decide (Next / Retry) — nothing advances by itself.
   function startStep(s, at12) {
     stopStep();
     step = { s, fret12: at12 };
-    renderStep('wait', esc(t('calListening')));
+    renderStep();
     const midi = OPEN_STRING_MIDI[s] + (at12 ? 12 : 0);
     cap = new PluckCapture(api.ctxRate(), midi);
     const bar = body.querySelector('.cal-meter i');
+    const st = body.querySelector('.cal-status');
+    const hint = body.querySelector('.cal-hint');
+    let lastState = '';
+    const armedAt = { t: 0 };
     meterTimer = setInterval(() => {
       if (!cap || !bar) return;
       if (!api.guitar.running) {           // the input went away mid-step: say so instead of waiting forever
         stopStep();
-        const st = body.querySelector('.cal-status');
-        if (st) { st.className = 'cal-status err'; st.textContent = t('gtrOff'); }
+        st.className = 'cal-status err'; st.textContent = t('gtrOff');
         return;
       }
-      const v = Math.max(0, Math.min(1, (cap.levelDb + 60) / 60));
-      bar.style.width = `${Math.round(100 * v)}%`;
-      if (cap.onset >= 0) body.querySelector('.cal-status').textContent = t('calAnalysing');
+      bar.style.width = `${Math.round(100 * Math.max(0, Math.min(1, (cap.levelDb + 60) / 60)))}%`;
+      if (cap.state !== lastState) {
+        lastState = cap.state;
+        if (cap.state === 'quiet') { st.className = 'cal-status wait'; st.textContent = t('calMute'); }
+        else if (cap.state === 'armed') { st.className = 'cal-status ok'; st.textContent = t('calReady'); armedAt.t = Date.now(); }
+        else if (cap.state === 'captured') { st.className = 'cal-status wait'; st.textContent = t('calAnalysing'); }
+      }
+      // armed for a while and still nothing loud enough: the level is the problem
+      hint.textContent = (cap.state === 'armed' && Date.now() - armedAt.t > 4000 && cap.peakDb < -55) ? t('calQuietHint') : '';
     }, 80);
     api.guitar.startCapture(block => {
       if (!cap) return;
@@ -159,11 +172,16 @@ export function setupCalibration(api) {
 
   function finishStep(r) {
     const st = body.querySelector('.cal-status');
+    const retry = body.querySelector('.cal-retry'), next = body.querySelector('.cal-next');
+    body.querySelector('.cal-hint').textContent = '';
+    retry.hidden = false;
     if (r.ok) {
       st.className = 'cal-status ok';
       st.textContent = t('calResult', fmtB(r.B), fmtCents(r.cents), r.n);
-      const mine = step;
-      setTimeout(() => { if (step === mine) advance(r); }, 900);   // not after a retry / skip / close
+      next.hidden = false;
+      next.textContent = step.s < 5 ? t('calNext') : t('calAccept');
+      next.addEventListener('click', () => advance(r));
+      next.focus();
       return;
     }
     st.className = 'cal-status err';
@@ -171,6 +189,7 @@ export function setupCalibration(api) {
     else if (r.error === 'noPartials') st.textContent = t('calErrNoPartials');
     else if (r.error === 'timeout') st.textContent = t('calErrTimeout');
     else st.textContent = t('calErrWrongNote', noteName(r.heardMidi), 6 - step.s);
+    retry.focus();
   }
 
   function advance(result) {

@@ -50,6 +50,18 @@ export const ECO = { iter: 5, active: 40 };
 // for ECO_HOLD hops it comes back. Hysteresis keeps it from flapping.
 const ECO_IN = 0.80, ECO_OUT = 0.45, ECO_HOLD = 375;   // 375 hops = 1 s
 
+// Input-level normalisation. The note rule's thresholds and the decomposer's
+// L1 penalty are absolute, tuned at GuitarSet levels (active hops: median
+// -27 dBFS, 95th percentile -17 dBFS). A guitar plugged straight into an
+// interface often sits 10-20 dB lower, and the decomposer then crushes its
+// activations. So the spectrum fed to the decomposer is scaled so that the
+// recent peak level (slow envelope) meets AGC_REF_DB; never attenuated, at
+// most +AGC_MAX_DB. Level and flux (dB differences) are left alone.
+const AGC_REF_DB = -17;
+const AGC_MAX_DB = 30;
+const AGC_DECAY_DB_PER_HOP = 6 / 375;   // the envelope falls 6 dB per second
+const AGC_FLOOR_DB = -70;               // below this nothing drives the envelope
+
 const FLUX_LAG = 3;
 const FLUX_LO = 4, FLUX_HI = 427;        // bins: 47 Hz .. 5 kHz
 const FLUX_BINS = FLUX_HI - FLUX_LO;
@@ -105,12 +117,16 @@ export class PolyTracker {
     this.nmfMs = 0;           // exponential average of the decomposer cost per hop
     this.hopMs = 0;           // ... of the whole hop
     this.maxHopMs = 0;
+    this.agc = params.agc !== false;
+    this.envDb = AGC_FLOOR_DB;  // slow peak of the hop level, for the AGC
+    this.gainDb = 0;            // gain applied to the spectrum this hop
     this.eco = false;         // decomposer running at the ECO setting (overload)
     this.autoEco = params.autoEco !== false;
     this._ecoCount = 0;
     this._full = { iter: this.decomposer.iter, active: this.decomposer.active };
     this._out = [];
     this._raw = [];
+    this._sent = new Map();     // raw pitch -> midi actually sent (shift at note-on time)
     this._onSample = s => this._sample(s);
     this.setParams(params);
   }
@@ -213,6 +229,16 @@ export class PolyTracker {
       low[j] = (pk[0] + pk[1]) / (pk[2] + pk[3] + pk[4] + pk[5] + EPS);
     }
 
+    // input-level normalisation (see AGC_REF_DB)
+    if (this.agc) {
+      this.envDb = Math.max(level, this.envDb - AGC_DECAY_DB_PER_HOP, AGC_FLOOR_DB);
+      this.gainDb = Math.min(AGC_MAX_DB, Math.max(0, AGC_REF_DB - this.envDb));
+      if (this.gainDb > 0) {
+        const g = Math.pow(10, this.gainDb / 20);
+        for (let b = 0; b < NBINS; b++) V[b] *= g;
+      }
+    }
+
     // decomposer + note rule
     const t1 = now();
     const P = this.decomposer.step(V);
@@ -228,7 +254,7 @@ export class PolyTracker {
     if (hopMs > this.maxHopMs) this.maxHopMs = hopMs;
     if (this.autoEco) this._loadControl();
     if (t % METER_EVERY === 0) {
-      this._out.push({ t: 'meter', db: level, hop: t, nmfMs: this.nmfMs, hopMs: this.hopMs, voices: this.rule.voices.size, eco: this.eco });
+      this._out.push({ t: 'meter', db: level, hop: t, nmfMs: this.nmfMs, hopMs: this.hopMs, voices: this.rule.voices.size, eco: this.eco, gainDb: this.gainDb });
     }
     this.hop = t + 1;
   }
@@ -253,13 +279,23 @@ export class PolyTracker {
     this.decomposer.active = on ? ECO.active : this._full.active;
   }
 
+  // The octave / transpose shift is applied here. A note-off must carry the
+  // same midi as its note-on even if the shift changed in between, or the
+  // host would keep the first note sounding forever: remember what was sent.
   _emit(raw) {
     for (let i = 0; i < raw.length; i++) {
       const e = raw[i];
-      const midi = e.midi + this.shift;
-      if (midi < 0 || midi > 127) continue;
-      if (e.t === 'on') this._out.push({ t: 'on', midi, vel: e.vel, why: 'poly', hop: e.hop });
-      else this._out.push({ t: 'off', midi, hop: e.hop });
+      if (e.t === 'on') {
+        const midi = e.midi + this.shift;
+        if (midi < 0 || midi > 127) continue;
+        this._sent.set(e.midi, midi);
+        this._out.push({ t: 'on', midi, vel: e.vel, why: 'poly', hop: e.hop });
+      } else {
+        const midi = this._sent.get(e.midi);
+        if (midi === undefined) continue;
+        this._sent.delete(e.midi);
+        this._out.push({ t: 'off', midi, hop: e.hop });
+      }
     }
   }
 }

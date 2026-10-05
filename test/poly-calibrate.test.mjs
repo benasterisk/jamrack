@@ -60,12 +60,21 @@ test('PluckCapture finds the onset by itself and reports the pluck', () => {
   let res = null;
   for (let o = 0; o < sig.length && !res; o += 128) res = cap.push(sig.subarray(o, Math.min(sig.length, o + 128)));
   assert.ok(res && res.ok, JSON.stringify(res));
+  assert.equal(cap.state, 'captured');
   assert.ok(Math.abs(cap.onset / 24000 - 0.4) < 0.02, `onset at ${(cap.onset / 24000).toFixed(3)} s`);
   assert.ok(Math.abs(res.B - 5e-5) / 5e-5 < 0.15, `B ${res.B.toExponential(2)}`);
-  // nothing played: timeout
+  // the capture arms only after 0.3 s of silence: a string still ringing keeps it 'quiet'
+  const busy = new PluckCapture(SR, 50);
+  const ringing = pluck(SR, { midi: 45, dur: 0.25, amp: 0.3 });
+  for (let o = 0; o < ringing.length; o += 128) busy.push(ringing.subarray(o, Math.min(ringing.length, o + 128)));
+  assert.equal(busy.state, 'quiet');
+  const hush = silence(SR, 0.35, 0.0005);
+  for (let o = 0; o < hush.length; o += 128) busy.push(hush.subarray(o, Math.min(hush.length, o + 128)));
+  assert.equal(busy.state, 'armed');
+  // nothing played: timeout (30 s)
   const idle = new PluckCapture(SR, 50);
   let t = null;
-  const quiet = silence(SR, 21, 0.0005);
+  const quiet = silence(SR, 32, 0.0005);
   for (let o = 0; o < quiet.length && !t; o += 4096) t = idle.push(quiet.subarray(o, Math.min(quiet.length, o + 4096)));
   assert.ok(t && t.error === 'timeout');
 });

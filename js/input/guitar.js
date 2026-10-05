@@ -49,10 +49,17 @@ export function createGuitarInput(ctx, handlers) {
     handlers.status && handlers.status(status);
   };
 
+  // `sounding` is the truth about what this input holds in the host. A
+  // note-off whose midi is not held (the MONO tracker applies the octave shift
+  // at emit time, so a shift change mid-note mislabels its own note-off)
+  // releases the note actually held instead, so nothing can stay stuck.
   function dispatch(events) {
     for (const e of events) {
       if (e.t === 'on') { sounding.add(e.midi); handlers.noteOn(e.midi, e.vel); }
-      else if (e.t === 'off') { sounding.delete(e.midi); handlers.noteOff(e.midi); }
+      else if (e.t === 'off') {
+        if (sounding.has(e.midi)) { sounding.delete(e.midi); handlers.noteOff(e.midi); }
+        else if (mode === 'mono' && sounding.size) { for (const m of sounding) handlers.noteOff(m); sounding.clear(); }
+      }
       else if (e.t === 'bend') handlers.bend(e.semis);
       else if (e.t === 'meter') handlers.meter && handlers.meter(e);
       else if (e.t === 'mode') handlers.mode && handlers.mode(e.mode);

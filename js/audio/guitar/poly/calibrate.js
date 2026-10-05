@@ -33,9 +33,11 @@ const ATT_MS = [10, 40];
 const FIT_MS = [60, 560];
 const MAX_CENTS = 100;
 const ONSET_RISE_DB = 12;
-const ONSET_MIN_DB = -45;
+const ONSET_MIN_DB = -55;      // a direct-input guitar can be quiet: the level bar tells the user
+const QUIET_DB = -50;          // ... and the capture arms only after this much silence
+const QUIET_S = 0.3;
 const CAPTURE_S = 0.62;        // after the onset: covers the fit window
-const TIMEOUT_S = 20;
+const TIMEOUT_S = 30;
 
 const dB = x => 20 * Math.log10(Math.max(x, 1e-9));
 const hzToCents = (f, ref) => 1200 * Math.log2(f / ref);
@@ -192,8 +194,10 @@ export function analysePluck(x, onset, expectMidi) {
 
 /**
  * Live capture of one pluck: feed the input blocks, read `result` once set.
- * Detects the onset itself (hop level rising 12 dB over the previous 100 ms
- * and above -45 dBFS), keeps 0.62 s after it, then analyses.
+ * `state` goes 'quiet' (waiting for 0.3 s under -50 dBFS: the previous string
+ * must stop ringing) -> 'armed' (pluck now) -> 'captured' (onset found: hop
+ * level rising 12 dB over the previous 100 ms, above -55 dBFS; 0.62 s kept)
+ * -> result. `peakDb` is the loudest hop seen, for the "too quiet" hint.
  */
 export class PluckCapture {
   constructor(sampleRate, expectMidi) {
@@ -205,6 +209,9 @@ export class PluckCapture {
     this.onset = -1;
     this.result = null;
     this.levelDb = -120;
+    this.peakDb = -120;
+    this.state = 'quiet';
+    this._quietHops = 0;
     this.sumSq = 0; this.inHop = 0;
     this._onSample = s => this._sample(s);
   }
@@ -229,12 +236,19 @@ export class PluckCapture {
     this.sumSq = 0;
     this.levels.push(lvl);
     this.levelDb = lvl;
+    if (lvl > this.peakDb) this.peakDb = lvl;
     const k = this.levels.length - 1;
+    if (this.state === 'quiet') {
+      this._quietHops = lvl < QUIET_DB ? this._quietHops + 1 : 0;
+      if (this._quietHops >= Math.round(QUIET_S * SR / HOP)) { this.state = 'armed'; this.peakDb = -120; }
+      if (this.n > TIMEOUT_S * SR) this.result = { ok: false, error: 'timeout' };
+      return;
+    }
     if (this.onset < 0) {
       if (k >= 40 && lvl >= ONSET_MIN_DB) {
         let past = Infinity;
         for (let d = 3; d <= 40; d++) past = Math.min(past, this.levels[k - d]);
-        if (lvl - past >= ONSET_RISE_DB) this.onset = Math.max(0, (k - 1) * HOP);
+        if (lvl - past >= ONSET_RISE_DB) { this.onset = Math.max(0, (k - 1) * HOP); this.state = 'captured'; }
       }
       if (this.n > TIMEOUT_S * SR) this.result = { ok: false, error: 'timeout' };
     } else if (this.n >= this.onset + Math.round(CAPTURE_S * SR)) {

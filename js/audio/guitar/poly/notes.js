@@ -43,6 +43,12 @@ export const NOTE_RULE = {
   minDelay: 0,
   lowGuard: 0.0,
   harmUp: 1.0,
+  // Not in the prototype (GuitarSet always carries signal): no note-on while
+  // the hop level is under gateDb, and every voice is released after
+  // silenceHops hops under it — a guitar put down must go quiet, whatever
+  // hum or dropout clicks the input still carries.
+  gateDb: -60,
+  silenceHops: 190,       // ~0.5 s
 };
 
 const HARMONIC_INTERVALS = [12, 19, 24, 28, 31];
@@ -72,6 +78,7 @@ export class NoteRule {
     this.lastOnset = -1e9;
     this.lastFlux = 0;
     this.onsetHop = -1e6;
+    this.quietHops = 0;
     this.voices.clear();
   }
 
@@ -87,6 +94,14 @@ export class NoteRule {
   step(P, level, flux, odd, low, out) {
     const p = this.p, t = this.t;
     const voices = this.voices;
+
+    // ---- level gate (see gateDb)
+    const gated = level < p.gateDb;
+    if (gated) {
+      if (++this.quietHops >= p.silenceHops && voices.size) this.flush(out, t);
+    } else {
+      this.quietHops = 0;
+    }
 
     // ---- onset detection
     this.levels[t & 7] = level;
@@ -113,7 +128,7 @@ export class NoteRule {
     const base = this.baseHist;
     for (let m = 0; m < N_PITCH; m++) base[bRow + m] = (P[m] > p.absOn && P[m] > p.frac * S) ? 1 : 0;
     const since = t - this.onsetHop;
-    const inWin = this.onsetHop >= 0 && since <= p.windowHops && since >= p.minDelay;
+    const inWin = !gated && this.onsetHop >= 0 && since <= p.windowHops && since >= p.minDelay;
     const cond = this.cond;
     let any = false;
     if (inWin) {
