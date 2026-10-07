@@ -143,7 +143,19 @@ n'apparaît pas, Log.txt du dossier Preferences de Live si Live plante)
 
 ## Mesures M0
 
-*À remplir après la soirée (date, Live, tampon, fréquence, pilote, build).*
+*À compléter après la soirée Live + Gigcaster (date, Live, tampon, fréquence, pilote, build).*
+
+**Essai partiel, 7 octobre 2026 — REAPER seul, sans Live ni Gigcaster.** PC portable,
+micro et enceintes intégrés, REAPER en WASAPI, 48 kHz, tampon 256 ; build
+`JAMRACK GTM Fx 0.0.1 (aafa807)` ; chaîne FX : JAMRACK GTM Fx → ReaSynth.
+- Do entendu à chaque attaque : **oui**.
+- Bend d'un demi-ton entendu pendant la note : **oui** → le pitch bend VST3 sort du plugin.
+- Enregistrement en *Record: output (MIDI)* (essayé aussi en MIDI + audio, overdub) :
+  objet MIDI avec les notes : **oui** → contre-épreuve REAPER réussie, le plugin émet bien.
+- Latence : « très acceptable » à l'oreille (non mesurée ; mesure au téléphone à faire
+  avec le Gigcaster).
+- Reste à faire : tout Live 12 (Fx et Inst dans *MIDI From*, side-chain *Audio From*,
+  armement, décalage d'enregistrement), mesures de latence à 64/128/256.
 
 ## Avis de licence
 
