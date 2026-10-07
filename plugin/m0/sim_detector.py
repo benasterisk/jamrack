@@ -1,17 +1,19 @@
 """Re-simulates the M0 attack detector (plugin/m0/PluginProcessor.cpp) on
 GuitarSet (mono pickup mix, 360 files) to compare the OLD rule (trigger
 > -30 dBFS, re-arm < -40 dBFS once the note is over) with rise detectors:
-fast 5 ms mean square > -30 dBFS AND fast > r * slow; re-armed once the
-note is over and fast < h * slow (or < -30 dBFS). The prototype uses
-r = 2, slow = 30 ms, h = 1.25. Each file is scaled to a -6 dBFS peak (a
-well-gained interface); notes are held 600 ms, as in the prototype.
+fast 5 ms mean square > a floor AND fast > r * slow; re-armed once the
+note is over and fast < h * slow (or under the floor). The prototype uses
+r = 2, slow = 30 ms, h = 1.25, floor -45 dBFS. Each file is scaled to
+several peak levels; notes are held 600 ms, as in the prototype.
 GuitarSet onsets lag the audio by 5-20 ms, hence the -25..+50 ms window.
 
   python -I plugin/m0/sim_detector.py D:/guitarset
 
-8 October 2026 (rule | precision | attacks caught while no note sounds):
-  old -30/-40 dBFS      94.6 %   39.0 %
-  r=2 slow=30 ms h=1.25 94.6 %   68.1 %   (lag p90 4.9 ms)
+8 October 2026, attacks caught while no note sounds at a -6 / -12 / -18 /
+-24 dBFS peak (precision 87-96 % for the chosen rule):
+  old -30 / re-arm -40 dBFS          39 / 37 / 13 / 0 %
+  rise r=2, 30 ms, h=1.25, -30 dBFS  68 / 48 / 13 / 0 %
+  rise r=2, 30 ms, h=1.25, -45 dBFS  72 / 73 / 71 / 61 %   (the prototype)
 """
 import glob
 import json

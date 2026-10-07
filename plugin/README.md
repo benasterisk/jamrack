@@ -13,7 +13,7 @@ ils détectent juste une attaque et jouent un do (note 60) avec un bend d'un dem
 | **JAMRACK GTM Inst** | `Gtm9` | instrument, avec une entrée *side-chain* | Live propose-t-il un sélecteur ***Audio From*** sur l'instrument ? |
 
 Ce qu'ils émettent, identique pour les deux : à chaque attaque franche (le son
-**monte** d'au moins 3 dB en quelques millisecondes, au-dessus de −30 dBFS),
+**saute** d'environ 6 dB en quelques millisecondes, au-dessus de −45 dBFS),
 **note 60 (do), vélocité 100, tenue 600 ms** ; pendant la note, le bend **monte d'un demi-ton** (de 100 à 250 ms,
 avec un instrument réglé sur une plage de bend de 2) puis **redescend** (de 250 à
 400 ms) ; la note s'arrête à 600 ms. À l'oreille : « do qui glisse vers do# et revient ».
@@ -87,6 +87,14 @@ Préparation (10 min) :
   Puis **Input Config** : active l'entrée mono du canal GUITAR.
 - Live : dossier VST3 = `D:\VST3` et Rescan (ci-dessus) ; les deux plugins JAMRACK GTM
   doivent apparaître.
+- **Niveau** : crée la piste audio « Guitare » (*Audio From* = canal GUITAR, *Monitor* =
+  In), joue fort : le vumètre de la piste doit monter vers **−12 à −6 dB** en crête
+  (règle le gain GUITAR du Gigcaster ; jamais dans le rouge). **Note ce niveau** dans le
+  compte rendu. En dessous de −24 dB, le prototype rate beaucoup d'attaques.
+- **Si le synthé reste muet** pendant une étape : regarde la ligne « notes sent » dans la
+  fenêtre du plugin JAMRACK. Elle augmente à chaque attaque → le plugin marche, c'est le
+  routage de Live (c'est ce qu'on mesure : réponds « non » et note-le). Elle ne bouge pas →
+  le plugin n'entend pas la guitare : niveau ou entrée de la piste.
 
 **1. REAPER (à installer ce soir-là, évaluation gratuite 60 jours) — contre-épreuve.**
 **Ferme Live d'abord** (il tient le pilote ASIO du Gigcaster). REAPER : Options →
@@ -104,7 +112,8 @@ Input = canal GUITAR du GCS-5 (mono), monitoring activé ; FX : **JAMRACK GTM Fx
 puis dans le menu du dessous **JAMRACK GTM Fx** ; *Monitor* = **In** ; un instrument
 réglé sur **plage de bend 2** (Wavetable / Operator : *Pitch Bend Range* = 2).
 - [ ] *MIDI From* → Guitare liste-t-il **JAMRACK GTM Fx** ? (oui/non)
-- [ ] Notes reçues (le synthé joue un do à chaque attaque) ? (oui/non)
+- [ ] Notes reçues (le synthé joue un do à chaque attaque) ? (oui/non ; si non : « notes
+  sent » augmente-t-il dans la fenêtre du plugin ? oui/non)
 - [ ] **Bend entendu pendant la note** : le do monte d'**un demi-ton** puis redescend ?
   (oui/non ; s'il monte de **trois tons** (un triton), l'instrument est resté en plage 12)
 
@@ -114,7 +123,8 @@ sélecteur ***Audio From*** (side-chain) : le régler sur la piste **Guitare**. 
 deuxième piste MIDI « Synthé 2 » avec le même instrument (plage de bend 2) : *MIDI From*
 = piste « Inst », puis dans le menu du dessous **JAMRACK GTM Inst** ; *Monitor* = **In**.
 - [ ] Sélecteur *Audio From* présent sur l'Inst ? (oui/non)
-- [ ] Notes reçues par l'instrument ? (oui/non)
+- [ ] Notes reçues par l'instrument ? (oui/non ; si non : « notes sent » augmente-t-il dans
+  la fenêtre de l'Inst ? oui/non)
 - [ ] Lequel des deux Live liste-t-il dans *MIDI From* : Fx, Inst, les deux, aucun ?
 
 **4. Armement.** Avec « Guitare » en *Monitor Auto*, armer « Synthé » coupe-t-il
@@ -146,6 +156,7 @@ côtés).
 Compte rendu M0 — date : ____
 Live : 12.__.__ (Help → About Live)
 Pilote : GCS-5, tampon ___, fréquence d'échantillonnage ___ kHz
+Niveau crête de la piste Guitare en jouant fort : ___ dB
 Build : (ligne lue dans l'éditeur du plugin, ex. « JAMRACK GTM Fx 0.0.1 (a1b2c3d) », avec le « + » s'il y en a un)
 
 1. REAPER : ReaSynth entendu oui/non ; item MIDI avec notes oui/non
@@ -191,17 +202,19 @@ python plugin/m0/check_probe.py --probe D:\JamRack\plugin\build\jamrack_vst3_pro
 ```
 
 **Résultat du 8 octobre 2026** (builds installés dans `D:\VST3`, identiques octet pour
-octet à ceux de `plugin/build`) : **58 vérifications sur 58 conformes**.
+octet à ceux de `plugin/build`) : **62 vérifications sur 62 conformes**.
 - Les deux plugins × 44,1 / 48 / 96 kHz × tampons 32 à 1024, plus canal MIDI 5 : pour
-  chaque attaque, note 60 vélocité 100 émise **0,28 à 0,32 ms** après l'attaque, molette
-  remise à 8192 au même échantillon, rampe à ±1 près de la droite 8192 → 12 288 → 8192
-  entre 100 et 400 ms (un message tous les 64 échantillons), un seul 8192 juste après
-  400 ms, note-off 60 à 600 ms pile ; événements identiques quel que soit le tampon ;
-  l'effet laisse passer l'audio **à l'identique**, l'instrument reste muet ; latence
-  déclarée 0.
+  chaque attaque, note 60 vélocité 100 émise **0,05 à 0,14 ms** après l'attaque (fichier
+  de test à attaques nettes), molette remise à 8192 au même échantillon, rampe à ±1 près
+  de la droite 8192 → 12 288 → 8192 entre 100 et 400 ms (un message tous les
+  64 échantillons), un seul 8192 juste après 400 ms, note-off 60 à 600 ms pile ;
+  événements identiques quel que soit le tampon ; l'effet laisse passer l'audio **à
+  l'identique**, l'instrument reste muet ; latence déclarée 0.
 - Cas du détecteur : corde **laissée sonner** et repincée chaque seconde → 10 notes sur
-  10 (1,05 ms) ; attaques pendant une note tenue → ignorées ; son à −35 dBFS → aucune
-  note ; son tenu 3,5 s → une seule note ; attaque au tout premier échantillon → note.
+  10 (médiane 1,05 ms, pire 8,8 ms) ; attaques pendant une note tenue → ignorées ; son à
+  −55 dBFS → aucune note ; son faible à −40 dBFS → une note par attaque ; son tenu 3,5 s
+  → une seule note ; attaque au tout premier échantillon → note ; un échantillon
+  invalide (NaN, infini) → aucune note perdue.
 - Interruptions en pleine note : **bypass** de l'hôte (dont un bypass qui se termine
   5 ms après une attaque, et un autre pendant que la corde sonne encore) et
   **désactivation / réactivation** (`--reprepare-at`) : note-off et molette à 8192 au
@@ -210,12 +223,19 @@ octet à ceux de `plugin/build`) : **58 vérifications sur 58 conformes**.
 - **pluginval niveau 5 : SUCCESS** et **validateur Steinberg : 47 tests sur 47** sur les
   deux plugins.
 
-Le détecteur a aussi été mesuré sur **GuitarSet** (360 enregistrements pris au capteur de la
-guitare, ramenés à une crête de −6 dBFS, notes tenues 600 ms comme le prototype) : il
-attrape **68 %** des attaques jouées quand aucune note ne sonne, et **94,6 %** de ses
-notes tombent sur une vraie attaque ; l'ancienne règle (réarmement sous −40 dBFS) n'en
-attrapait que **39 %** (même précision), parce qu'une corde qui sonne encore bloquait la
-suivante. Ce n'est qu'un détecteur de test : la vraie reconnaissance des notes arrive en
+Le détecteur a aussi été mesuré sur **GuitarSet** (360 enregistrements pris au capteur de
+la guitare, notes tenues 600 ms comme le prototype ; `python -I plugin/m0/sim_detector.py
+D:/guitarset`, simulation vérifiée identique au plugin note pour note sur des fichiers
+passés dans l'hôte de test). Part des attaques attrapées quand aucune note ne sonne,
+selon le niveau de crête de la guitare :
+
+| niveau de crête | −6 dB | −12 dB | −18 dB | −24 dB |
+|---|---|---|---|---|
+| détecteur actuel (montée, plancher −45 dBFS) | **72 %** | **73 %** | **71 %** | **61 %** |
+| première règle (−30 dBFS, réarmement sous −40) | 39 % | 37 % | 13 % | 0 % |
+
+Entre 87 % (guitare forte) et 96 % (guitare faible) des notes émises tombent sur une vraie
+attaque. Ce n'est qu'un détecteur de test : la vraie reconnaissance des notes arrive en
 M1.
 
 Ce que ces tests **ne disent pas** : comment Live route ce MIDI (*MIDI From*, *Audio
