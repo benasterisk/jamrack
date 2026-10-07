@@ -59,6 +59,24 @@ aux changements de session. Détails : `docs/local-setup.md`.
   non technique, sans promesse de polyphonie) :
   https://claude.ai/artifact/SoYz1iuPrbftoJbeS4rNbf
 
+## Étude plugin DAW (7 octobre 2026)
+
+- Question du propriétaire : faire de GUITARE → MIDI un plugin pour les DAW
+  (Ableton Live d'abord) qui ressort du MIDI vers les pistes ou une sortie
+  MIDI. Rapport sourcé : `docs/daw-plugin-feasibility.md` (notes de
+  recherche dans `docs/daw-plugin-research/`). Conclusions : faisable (1 634
+  lignes de DSP pur à porter en C++) ; ça existe déjà (Jam Origin MIDI
+  Guitar, fermé, 149,95 USD, sans mesure publiée) ; recommandation **VST3
+  « effet audio avec sortie MIDI »** (pas un instrument : il faut l'entrée
+  audio de la piste guitare), **JUCE** licence Starter + sources MIT,
+  **Windows + Live 12** d'abord (routage *MIDI From* → piste guitare →
+  plugin ; AU ignoré par Live pour le MIDI), CLAP en sous-produit, AU puis
+  autonome ensuite, pas d'AAX ; gain de latence honnête 8-15 ms (tampons
+  navigateur), la détection 9-36 ms reste ; effort 10-14 sessions + 6-8
+  soirées d'essai, 0 EUR pour la bêta Windows. **Aucun code écrit** ;
+  cinq décisions du propriétaire en §7 du rapport, puis jalon M0 (prototype
+  jetable qui mesure routage, bend et latence dans Live 12.4).
+
 ## POLY (polyphonie) — état exact
 
 - **Décisions du propriétaire** (plan §0) : sélecteur **MONO / POLY** sur la
