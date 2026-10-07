@@ -56,8 +56,7 @@ void GtmPrototypeProcessor::resetState() noexcept
 {
     if (noteOn)
         flushPending = true;      // its note-off goes out at the start of the next block
-    env = 0.0;
-    armed = true;
+    armed = false;                // envelopes kept: a string still ringing re-arms, never triggers
     noteOn = false;
     sinceOn = 0;
     samplesToNextBend = 0;
@@ -66,7 +65,8 @@ void GtmPrototypeProcessor::resetState() noexcept
 void GtmPrototypeProcessor::prepareToPlay (double newSampleRate, int)
 {
     sampleRate = newSampleRate > 0 ? newSampleRate : 44100.0;
-    envCoef = 1.0 - std::exp (-1.0 / (0.005 * sampleRate));
+    fastCoef = 1.0 - std::exp (-1.0 / (fastSeconds * sampleRate));
+    slowCoef = 1.0 - std::exp (-1.0 / (slowSeconds * sampleRate));
     rampStart  = (int64_t) std::llround (0.100 * sampleRate);
     rampPeak   = (int64_t) std::llround (0.250 * sampleRate);
     rampEnd    = (int64_t) std::llround (0.400 * sampleRate);
@@ -119,13 +119,15 @@ void GtmPrototypeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     const float* in = buffer.getNumChannels() > 0 ? buffer.getReadPointer (0) : nullptr;
    #endif
 
-    const double triggerMs = std::pow (10.0, triggerDb / 10.0);   // mean-square thresholds
-    const double rearmMs = std::pow (10.0, rearmDb / 10.0);
+    const double triggerMs = std::pow (10.0, triggerDb / 10.0);   // mean-square threshold
 
     for (int s = 0; s < n; ++s)
     {
         const double x = in != nullptr ? (double) in[s] : 0.0;
-        env += envCoef * (x * x - env);
+        envFast += fastCoef * (x * x - envFast);
+        envSlow += slowCoef * (x * x - envSlow);
+        const bool rising = envFast > triggerMs && envFast > riseRatio * envSlow;
+        const bool settled = ! (envFast > triggerMs && envFast > rearmRatio * envSlow);
 
         if (noteOn)
         {
@@ -149,12 +151,13 @@ void GtmPrototypeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
             }
         }
 
-        // Re-arm only once the note is over: an attack during the held note
-        // is ignored, never replayed late at the note-off.
-        if (! armed && ! noteOn && env < rearmMs)
+        // Re-arm only once the note is over AND the rise has died down: an
+        // attack during the held note is ignored, never replayed late at the
+        // note-off; a string that keeps ringing does not block the next pluck.
+        if (! armed && ! noteOn && settled)
             armed = true;
 
-        if (armed && ! noteOn && env > triggerMs)
+        if (armed && ! noteOn && rising)
         {
             armed = false;
             noteOn = true;
@@ -176,11 +179,22 @@ void GtmPrototypeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     // Fx: the audio buffer is left untouched (pass-through)
 }
 
+void GtmPrototypeProcessor::trackEnvelope (const float* in, int n) noexcept
+{
+    for (int s = 0; s < n; ++s)
+    {
+        const double x = in != nullptr ? (double) in[s] : 0.0;
+        envFast += fastCoef * (x * x - envFast);
+        envSlow += slowCoef * (x * x - envSlow);
+    }
+}
+
 // Host bypass (the VST3 bypass parameter JUCE exposes): the sounding note is
 // released at once (otherwise it would hang, and its timeline would resume
-// late after un-bypass), the detector starts afresh, the Fx passes the audio
-// through and the Inst stays silent (JUCE's default bypass would copy the
-// side-chain guitar to the instrument's output).
+// late after un-bypass), the envelopes keep following the input and the
+// detector stays disarmed, so a string still ringing at un-bypass plays
+// nothing; the Fx passes the audio through and the Inst stays silent (JUCE's
+// default bypass would copy the side-chain guitar to the instrument's output).
 void GtmPrototypeProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -193,15 +207,17 @@ void GtmPrototypeProcessor::processBlockBypassed (juce::AudioBuffer<float>& buff
     }
     flushPending = false;
     noteOn = false;
-    env = 0.0;
-    armed = true;
+    armed = false;
     sinceOn = 0;
     samplesToNextBend = 0;
    #if JAMRACK_IS_INST
+    auto side = getBusBuffer (buffer, true, 0);
+    trackEnvelope (side.getNumChannels() > 0 ? side.getReadPointer (0) : nullptr, buffer.getNumSamples());
     for (int ch = 0; ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear (ch, 0, buffer.getNumSamples());
    #else
-    juce::ignoreUnused (buffer);   // Fx: audio passes through unchanged
+    trackEnvelope (buffer.getNumChannels() > 0 ? buffer.getReadPointer (0) : nullptr, buffer.getNumSamples());
+    // Fx: audio passes through unchanged
    #endif
 }
 

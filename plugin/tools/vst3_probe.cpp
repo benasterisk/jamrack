@@ -4,13 +4,17 @@
 //
 //   vst3_probe --plugin "D:/VST3/JAMRACK GTM Fx.vst3" --wav plucks.wav --out events.json
 //              [--block 128] [--channel 5] [--bypass-from 2.3] [--bypass-to 3.0]
+//              [--reprepare-at 2.8]
 //
 // It answers, without a DAW and without a person at the screen, what a host
 // sees: which notes come out and at which sample, the pitch-wheel values,
-// the channel, what happens around a host bypass, and whether the audio
-// passes through (effect) or stays silent (instrument). Every input bus is
-// enabled and fed the WAV, so an instrument whose only input is a side-chain
-// receives it exactly as Live's "Audio From" would deliver it.
+// the channel, what happens around a host bypass or a deactivate/reactivate
+// (releaseResources + prepareToPlay, what a host does when a device is
+// switched off and on), and whether the audio passes through (effect) or
+// stays silent (instrument). Every input bus is enabled and fed the WAV, so
+// an instrument whose only input is a side-chain receives it on that bus.
+// Limits: JUCE hosting passes the same buffer as input and output, and does
+// not reproduce Live's own routing, tap point or level.
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -27,6 +31,7 @@ namespace
         int block = 128;
         int channel = 0;              // 0 = leave the plugin's default
         double bypassFrom = -1.0, bypassTo = -1.0;
+        double reprepareAt = -1.0;
     };
 
     bool parse (int argc, char** argv, Args& a)
@@ -42,6 +47,7 @@ namespace
             else if (k == "--channel") a.channel = next().getIntValue();
             else if (k == "--bypass-from") a.bypassFrom = next().getDoubleValue();
             else if (k == "--bypass-to") a.bypassTo = next().getDoubleValue();
+            else if (k == "--reprepare-at") a.reprepareAt = next().getDoubleValue();
             else { std::fprintf (stderr, "unknown option %s\n", argv[i]); return false; }
         }
         return a.plugin.isNotEmpty() && a.wav.isNotEmpty() && a.out.isNotEmpty() && a.block > 0;
@@ -56,7 +62,7 @@ int main (int argc, char** argv)
     if (! parse (argc, argv, a))
     {
         std::fprintf (stderr, "usage: vst3_probe --plugin <x.vst3> --wav <in.wav> --out <events.json> "
-                              "[--block 128] [--channel N] [--bypass-from s --bypass-to s]\n");
+                              "[--block 128] [--channel N] [--bypass-from s --bypass-to s] [--reprepare-at s]\n");
         return 2;
     }
 
@@ -116,6 +122,8 @@ int main (int argc, char** argv)
     bool bypassed = false;
     const int bypassFrom = a.bypassFrom >= 0 ? (int) std::llround (a.bypassFrom * sr) : -1;
     const int bypassTo = a.bypassTo >= 0 ? (int) std::llround (a.bypassTo * sr) : -1;
+    const int reprepareAt = a.reprepareAt >= 0 ? (int) std::llround (a.reprepareAt * sr) : -1;
+    bool reprepared = false;
 
     // a few seconds of silence after the file let the last note end
     const int tail = (int) (1.0 * sr);
@@ -127,6 +135,13 @@ int main (int argc, char** argv)
         for (int ch = 0; ch < nIn; ++ch)
             for (int s = 0; s < n; ++s)
                 buf.setSample (ch, s, start + s < total ? wav.getSample (0, start + s) : 0.0f);
+
+        if (reprepareAt >= 0 && ! reprepared && start >= reprepareAt)
+        {
+            plugin->releaseResources();
+            plugin->prepareToPlay (sr, a.block);
+            reprepared = true;
+        }
 
         const bool wantBypass = bypassFrom >= 0 && start >= bypassFrom && (bypassTo < 0 || start < bypassTo);
         if (bypass != nullptr && wantBypass != bypassed)

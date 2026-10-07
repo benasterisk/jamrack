@@ -5,24 +5,31 @@ meant to do (docs/plugin-plan.md, M0 task 2). No DAW, no person needed.
 
   python plugin/m0/check_probe.py --probe <vst3_probe.exe> --outdir <dir> [--vst3 D:/VST3]
 
-Builds test WAVs (10 plucks, one per second, known onsets) at 44.1, 48 and
-96 kHz, runs both plugins through the probe at every block size from 32 to
-1024, plus a MIDI-channel test and a host-bypass test, and checks per note:
-  - note-on 60, velocity 100, on the requested channel, within 2 ms of the
-    attack, preceded at the same sample by a pitch-wheel reset to 8192;
-  - pitch wheel only DURING the note: rising from 8192 to ~12288 between
-    100 and 250 ms, falling back to 8192 by 400 ms, one message per 64
-    samples, monotonic on each side;
-  - note-off 600 ms after the note-on (to the sample), with the wheel back
-    to 8192 at the same sample;
+Builds test WAVs, runs both plugins through the probe and checks, per note:
+  - note-on 60, velocity 100, on the requested channel, preceded at the same
+    sample by a pitch-wheel reset to 8192, within a few ms of a real attack,
+    exactly one note per attack that arrives while no note sounds;
+  - pitch wheel only DURING the note, one message every 64 samples from the
+    note-on: none before 100 ms, every value between 100 and 400 ms within 1
+    of the straight line 8192 -> 12288 (250 ms) -> 8192, then exactly one
+    8192 within 64 samples after 400 ms and nothing else;
+  - note-off 60 on the note's channel 600 ms after the note-on (to the
+    sample), or exactly where the host cut it, with the wheel back to 8192
+    at the same sample;
   - no event at all outside the notes, no hanging note at the end;
   - effect: audio passes through bit-exactly; instrument: silent output;
-  - identical event positions whatever the block size (sample-accurate);
-  - host bypass in mid-note: note-off and wheel reset at the bypass
-    block, nothing while bypassed, normal notes again afterwards.
+  - identical events whatever the block size (sample-accurate);
+  - host bypass and deactivate/reactivate in mid-note: note-off and wheel
+    reset at that block, nothing more until the first attack that comes
+    after, and from there the same events as without the interruption;
+  - detector cases: a string left ringing and plucked again every second,
+    an attack during a held note, a tone too quiet to trigger, a sustained
+    tone, an attack on the very first sample.
+It also checks that the installed DLLs are the ones in plugin/build.
 Exit code 1 on any failure; a Markdown summary is printed.
 """
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -32,24 +39,46 @@ import numpy as np
 import soundfile as sf
 
 ONSETS = [0.5 + k * 1.0 for k in range(10)]
-PLUGINS = {'Fx': 'JAMRACK GTM Fx', 'Inst': 'JAMRACK GTM Inst'}
+PLUGINS = {'Fx': ('JAMRACK GTM Fx', 'jamrack_gtm_fx'), 'Inst': ('JAMRACK GTM Inst', 'jamrack_gtm_inst')}
 RATES = [44100, 48000, 96000]
 BLOCKS = [32, 64, 128, 256, 512, 1024]
+NOTE_S, RAMP_S = 0.600, (0.100, 0.250, 0.400)
+EVERY = 64
 
 
-def make_wav(path, sr):
-    """10 plucks (110 Hz, 60 ms decay, a click on the attack), peak -6 dBFS."""
-    x = np.zeros(int(sr * 11.0))
+def synth(path, sr, onsets, tau=0.06, length=11.0, replace=False):
+    """Plucks (110 Hz, decay tau, a click on the attack), peak -6 dBFS.
+    replace: each pluck stops the previous one (the same string plucked again)."""
+    x = np.zeros(int(sr * length))
     rng = np.random.default_rng(1)
-    for t0 in ONSETS:
-        n0, n = int(round(t0 * sr)), int(0.6 * sr)
+    for i, t0 in enumerate(onsets):
+        n0 = int(round(t0 * sr))
+        if replace:
+            n = (int(round(onsets[i + 1] * sr)) if i + 1 < len(onsets) else len(x)) - n0
+        else:
+            n = min(int(0.6 * sr), len(x) - n0)
         t = np.arange(n) / sr
         s = sum((1.0 / k) * np.sin(2 * np.pi * k * 110.0 * t) for k in range(1, 15))
-        env = np.minimum(1, t / 0.0005) * np.exp(-t / 0.06)
+        env = np.minimum(1, t / 0.0005) * np.exp(-t / tau)
         click = np.exp(-t / 0.0008) * rng.standard_normal(n) * 0.5 * np.minimum(1, t / 0.0002)
-        x[n0:n0 + n] += 0.35 * env * s + click
+        if replace:
+            x[n0:n0 + n] = 0.35 * env * s + click
+        else:
+            x[n0:n0 + n] += 0.35 * env * s + click
     x /= np.max(np.abs(x)) / 0.5
     sf.write(path, x.astype(np.float32), sr, subtype='PCM_16')
+
+
+def tones(path, sr, spans, rms_db, length):
+    """220 Hz sine bursts at a given RMS level, 1 ms fade-in, 10 ms fade-out."""
+    x = np.zeros(int(sr * length))
+    a = np.sqrt(2) * 10 ** (rms_db / 20)
+    for t0, t1 in spans:
+        n0, n1 = int(round(t0 * sr)), int(round(t1 * sr))
+        t = np.arange(n1 - n0) / sr
+        fade = np.minimum(1, t / 0.001) * np.minimum(1, (t[-1] - t) / 0.01)
+        x[n0:n1] = a * fade * np.sin(2 * np.pi * 220.0 * t)
+    sf.write(path, x.astype(np.float32), sr, subtype='FLOAT')
 
 
 def run_probe(probe, plugin, wav, out, block, extra=()):
@@ -60,86 +89,152 @@ def run_probe(probe, plugin, wav, out, block, extra=()):
     return json.load(open(out, encoding='utf-8'))
 
 
-def check_notes(d, sr, channel=1, bypass=None):
-    """Returns (problems, per-note facts). bypass = (from_s, to_s) or None."""
-    probs = []
+def ideal_wheel(rel, rs, rp, re):
+    if rel < rp:
+        return 8192 + 4096.0 * (rel - rs) / (rp - rs)
+    return 12288 - 4096.0 * (rel - rp) / (re - rp)
+
+
+def check_notes(d, sr, attacks, channel=1, max_lat_ms=2.0, cuts=()):
+    """Returns (problems, note-on latencies in ms). attacks: times (s) of the
+    attacks that must each give exactly one note; cuts: samples where the host
+    interrupted processing (the sounding note must end exactly there)."""
+    probs, lats = [], []
     ev = d['events']
-    ons = [e for e in ev if e['type'] == 'on']
-    offs = [e for e in ev if e['type'] == 'off']
-    wheel = [e for e in ev if e['type'] == 'wheel']
     other = [e for e in ev if e['type'] not in ('on', 'off', 'wheel')]
     if other:
         probs.append(f'{len(other)} unexpected messages: {other[:2]}')
     if any(e['ch'] != channel for e in ev):
         probs.append(f'events on another channel than {channel}: {sorted({e["ch"] for e in ev})}')
-    if any(e['type'] == 'on' and (e['note'] != 60 or e['vel'] != 100) for e in ev):
-        probs.append('a note-on is not note 60 velocity 100')
-    if len(ons) != len(offs):
-        probs.append(f'{len(ons)} note-ons but {len(offs)} note-offs (hanging note)')
-    note_len = int(round(0.6 * sr))
-    expected_onsets = ONSETS
-    if bypass:
-        b0, b1 = bypass
-        # the note that started before the bypass is cut at the bypass block;
-        # attacks inside the bypass window produce nothing
-        expected_onsets = [t for t in ONSETS if t < b0 or t >= b1]
-    if len(ons) != len(expected_onsets):
-        probs.append(f'{len(ons)} notes for {len(expected_onsets)} attacks')
-    facts = []
-    for i, on in enumerate(ons):
+    L = int(round(NOTE_S * sr))
+    rs, rp, re = (int(round(t * sr)) for t in RAMP_S)
+    ons = [i for i, e in enumerate(ev) if e['type'] == 'on']
+    covered = set()
+    matched = set()
+    for k, i in enumerate(ons):
+        on = ev[i]
         s_on = on['sample']
-        t0 = min(expected_onsets, key=lambda t: abs(t - on['t']))
-        lat_ms = 1000 * (on['t'] - t0)
-        if not 0 <= lat_ms <= 2.0:
-            probs.append(f'note {i}: note-on {lat_ms:.2f} ms after the attack (expected 0..2)')
-        if not any(w['sample'] == s_on and w['value'] == 8192 for w in wheel):
-            probs.append(f'note {i}: no wheel reset at the note-on sample')
-        nxt = [o for o in offs if o['sample'] >= s_on]
-        if not nxt:
+        if on['note'] != 60 or on['vel'] != 100:
+            probs.append(f'note {k}: note-on {on["note"]} velocity {on["vel"]} (expected 60, 100)')
+        if not (i > 0 and ev[i - 1]['type'] == 'wheel' and ev[i - 1]['sample'] == s_on and ev[i - 1]['value'] == 8192):
+            probs.append(f'note {k}: no wheel reset just before the note-on')
+        else:
+            covered.add(i - 1)
+        covered.add(i)
+        # which attack is it?
+        near = [a for a in attacks if 0 <= (on['t'] - a) * 1000 <= max_lat_ms]
+        if not near:
+            probs.append(f'note {k}: note-on at {on["t"]:.4f} s matches no expected attack')
+        else:
+            matched.add(near[0])
+            lats.append(1000 * (on['t'] - near[0]))
+        # its note-off
+        offs = [j for j in range(i + 1, len(ev)) if ev[j]['type'] == 'off']
+        if not offs:
+            probs.append(f'note {k}: no note-off (hanging note)')
             continue
-        s_off = nxt[0]['sample']
-        cut = bypass and bypass[0] * sr <= s_off < bypass[1] * sr + sr
-        if not cut and s_off - s_on != note_len:
-            probs.append(f'note {i}: note-off {s_off - s_on} samples after the note-on (expected {note_len})')
-        if not any(w['sample'] == s_off and w['value'] == 8192 for w in wheel):
-            probs.append(f'note {i}: wheel not reset at the note-off sample')
-        during = [w for w in wheel if s_on < w['sample'] < s_off]
-        if not cut:
-            vals = [w['value'] for w in during]
-            times = [(w['sample'] - s_on) / sr * 1000 for w in during]
-            if not vals:
-                probs.append(f'note {i}: no pitch wheel during the note')
-            else:
-                peak = max(vals)
-                t_peak = times[vals.index(peak)]
-                if not 12200 <= peak <= 12288:
-                    probs.append(f'note {i}: wheel peak {peak} (expected ~12288)')
-                if not 248 <= t_peak <= 252:
-                    probs.append(f'note {i}: wheel peak at {t_peak:.1f} ms (expected 250)')
-                ramp = [(t, v) for t, v in zip(times, vals) if v != 8192]
-                if ramp and not (99 <= ramp[0][0] <= 102 and 398 <= ramp[-1][0] <= 401):
-                    probs.append(f'note {i}: bend from {ramp[0][0]:.1f} to {ramp[-1][0]:.1f} ms (expected 100..400)')
-                up = [v for t, v in zip(times, vals) if t <= t_peak]
-                down = [v for t, v in zip(times, vals) if t >= t_peak]
-                if any(b < a for a, b in zip(up, up[1:])) or any(b > a for a, b in zip(down, down[1:])):
-                    probs.append(f'note {i}: wheel ramp not monotonic')
-                gaps = np.diff([w['sample'] for w in during if 0.1 * sr <= w['sample'] - s_on < 0.4 * sr])
-                if len(gaps) and (gaps.min() < 64 or gaps.max() > 64):
-                    probs.append(f'note {i}: wheel spacing {gaps.min()}..{gaps.max()} samples (expected 64)')
-            facts.append({'lat_ms': lat_ms, 'peak': peak if vals else None, 'n_wheel': len(vals)})
-    # nothing between the notes
-    spans = []
-    for on in ons:
-        nxt = [o for o in offs if o['sample'] >= on['sample']]
-        spans.append((on['sample'], nxt[0]['sample'] if nxt else 10 ** 12))
-    stray = [e for e in ev if not any(a <= e['sample'] <= b for a, b in spans)]
-    if stray and not bypass:
+        j = offs[0]
+        off = ev[j]
+        s_off = off['sample']
+        nxt_on = [x for x in ons if x > i]
+        if nxt_on and nxt_on[0] < j:
+            probs.append(f'note {k}: a note-on before its note-off')
+        cut = [c for c in cuts if s_on < c < s_on + L]
+        want_off = cut[0] if cut else s_on + L
+        if s_off != want_off:
+            probs.append(f'note {k}: note-off at +{s_off - s_on} samples (expected +{want_off - s_on})')
+        if off['note'] != 60 or off['ch'] != on['ch']:
+            probs.append(f'note {k}: note-off {off["note"]} on channel {off["ch"]} (expected 60 on {on["ch"]})')
+        covered.add(j)
+        if not (j + 1 < len(ev) and ev[j + 1]['type'] == 'wheel' and ev[j + 1]['sample'] == s_off and ev[j + 1]['value'] == 8192):
+            probs.append(f'note {k}: wheel not reset just after the note-off')
+        else:
+            covered.add(j + 1)
+        # the wheel during the note
+        during = [(x, ev[x]) for x in range(i + 1, j) if ev[x]['type'] == 'wheel']
+        covered.update(x for x, _ in during)
+        if any(e['type'] != 'wheel' for e in ev[i + 1:j]):
+            probs.append(f'note {k}: other events inside the note')
+        rel = [(e['sample'] - s_on, e['value']) for _, e in during]
+        if any(r % EVERY for r, _ in rel):
+            probs.append(f'note {k}: wheel off the 64-sample grid')
+        if any(r < rs for r, _ in rel):
+            probs.append(f'note {k}: wheel before 100 ms')
+        span = s_off - s_on
+        ramp = [(r, v) for r, v in rel if rs <= r < re]
+        want = [r for r in range(EVERY, span, EVERY) if rs <= r < re]
+        if [r for r, _ in ramp] != want:
+            probs.append(f'note {k}: {len(ramp)} ramp messages, expected {len(want)} (one per 64 samples)')
+        bad = [(r, v) for r, v in ramp if abs(v - ideal_wheel(r, rs, rp, re)) > 1]
+        if bad:
+            probs.append(f'note {k}: wheel off the line at {1000 * bad[0][0] / sr:.1f} ms ({bad[0][1]})')
+        after = [(r, v) for r, v in rel if r >= re]
+        if span > re + EVERY:
+            if len(after) != 1 or after[0][1] != 8192 or after[0][0] >= re + EVERY:
+                probs.append(f'note {k}: after 400 ms expected one 8192 within 64 samples, got {after[:3]}')
+        elif after and any(v != 8192 for _, v in after):
+            probs.append(f'note {k}: wheel not back to 8192 after 400 ms')
+    missing = [a for a in attacks if a not in matched]
+    if missing:
+        probs.append(f'{len(missing)} attacks without a note, first at {missing[0]} s')
+    if len(ons) != len(attacks):
+        probs.append(f'{len(ons)} notes for {len(attacks)} attacks')
+    stray = [e for x, e in enumerate(ev) if x not in covered]
+    if stray:
         probs.append(f'{len(stray)} events outside any note, first {stray[0]}')
-    if bypass:
-        inside = [e for e in ev if bypass[0] * sr + d['block'] <= e['sample'] < bypass[1] * sr]
-        if inside:
-            probs.append(f'{len(inside)} events while bypassed, first {inside[0]}')
-    return probs, facts
+    return probs, lats
+
+
+def audio_checks(kind, d):
+    p = []
+    if kind == 'Fx' and d['passThroughMaxDiff'] != 0:
+        p.append(f'audio not passed through (max diff {d["passThroughMaxDiff"]})')
+    if kind == 'Inst' and d['outputMaxAbs'] != 0:
+        p.append(f'instrument output not silent (max {d["outputMaxAbs"]})')
+    if d['latencySamples'] != 0:
+        p.append(f'reported latency {d["latencySamples"]}')
+    if not (d['layoutAccepted'] and d['inputChannels'] == 2 and d['outputChannels'] == 2):
+        p.append(f'layout {d["layoutAccepted"]} {d["inputChannels"]}/{d["outputChannels"]}')
+    if d['isInstrument'] != (kind == 'Inst') or not d['producesMidi'] or not d['hasBypassParameter']:
+        p.append('instrument/MIDI/bypass flags not as expected')
+    return p
+
+
+def key(e):
+    return (e['type'], e['sample'], e['ch'], e.get('note'), e.get('vel'), e.get('value'))
+
+
+def interrupted(d, ref, cut, resume, block):
+    """Events of a run interrupted at sample `cut` (bypass or re-prepare)
+    until `resume`, against the uninterrupted run `ref`: identical before the
+    cut; at the cut, a note-off + wheel 8192 if a note was sounding; nothing
+    until the first note-on of `ref` at or after `resume`; identical from
+    there. The cut and resume happen at block starts."""
+    c = -(-cut // block) * block
+    r = -(-resume // block) * block
+    ev = [key(e) for e in d['events']]
+    rf = [key(e) for e in ref['events']]
+    first = min([e[1] for e in rf if e[0] == 'on' and e[1] >= r], default=10 ** 12)
+    p = []
+    if [e for e in ev if e[1] < c] != [e for e in rf if e[1] < c]:
+        p.append('events before the interruption differ from the normal run')
+    sounding = any(e[0] == 'on' and e[1] < c for e in rf) and \
+        max([e[1] for e in rf if e[0] == 'on' and e[1] < c], default=-1) > max([e[1] for e in rf if e[0] == 'off' and e[1] <= c], default=-1)
+    at = [e for e in ev if c <= e[1] < first]
+    want = [('off', c, 1, 60, None, None), ('wheel', c, 1, None, None, 8192)] if sounding else []
+    if [(e[0], e[1], e[3], e[5]) for e in at] != [(w[0], w[1], w[3], w[5]) for w in want]:
+        p.append(f'between the cut and the next attack: {at[:3]} (expected {"note-off + wheel 8192 at the cut" if sounding else "nothing"})')
+    if [e for e in ev if e[1] >= first] != [e for e in rf if e[1] >= first]:
+        p.append('events after the interruption differ from the normal run')
+    return p, c, sounding
+
+
+def md5(path):
+    h = hashlib.md5()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def main():
@@ -147,58 +242,118 @@ def main():
     ap.add_argument('--probe', required=True)
     ap.add_argument('--outdir', required=True)
     ap.add_argument('--vst3', default='D:/VST3')
+    ap.add_argument('--build', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'build'))
     a = ap.parse_args()
+    sys.stdout.reconfigure(encoding='utf-8')   # the Windows console is not UTF-8
     os.makedirs(a.outdir, exist_ok=True)
-    rows, failures, ref = [], 0, {}
-    for sr in RATES:
-        wav = os.path.join(a.outdir, f'plucks-{sr}.wav')
-        make_wav(wav, sr)
-        for kind, name in PLUGINS.items():
-            plugin = f'{a.vst3}/{name}.vst3'
-            for block in BLOCKS:
-                d = run_probe(a.probe, plugin, wav, os.path.join(a.outdir, f'{kind}-{sr}-{block}.json'), block)
-                probs, facts = check_notes(d, sr)
-                if kind == 'Fx' and d['passThroughMaxDiff'] != 0:
-                    probs.append(f'audio not passed through (max diff {d["passThroughMaxDiff"]})')
-                if kind == 'Inst' and d['outputMaxAbs'] != 0:
-                    probs.append(f'instrument output not silent (max {d["outputMaxAbs"]})')
-                if d['latencySamples'] != 0:
-                    probs.append(f'reported latency {d["latencySamples"]}')
-                pos = [(e['type'], e['sample'], e.get('value'), e.get('note')) for e in d['events']]
-                key = (kind, sr)
-                if key not in ref:
-                    ref[key] = pos
-                elif pos != ref[key]:
-                    probs.append('events differ from the 32-sample-block run (not sample-accurate)')
-                lat = [f['lat_ms'] for f in facts]
-                rows.append((kind, sr, block, len([e for e in d['events'] if e['type'] == 'on']),
-                             f'{np.median(lat):.2f}' if lat else '-', 'OK' if not probs else '; '.join(probs[:3])))
-                failures += bool(probs)
-    # MIDI channel 5
-    sr = 48000
-    wav = os.path.join(a.outdir, f'plucks-{sr}.wav')
-    for kind, name in PLUGINS.items():
-        d = run_probe(a.probe, f'{a.vst3}/{name}.vst3', wav, os.path.join(a.outdir, f'{kind}-ch5.json'), 128, ['--channel', '5'])
-        probs, _ = check_notes(d, sr, channel=5)
-        rows.append((kind, sr, '128, MIDI CH 5', len([e for e in d['events'] if e['type'] == 'on']), '-', 'OK' if not probs else '; '.join(probs[:3])))
-        failures += bool(probs)
-    # host bypass in mid-note: from 300 ms into the 3rd note (t = 2.8 s) to 4.2 s
-    for kind, name in PLUGINS.items():
-        d = run_probe(a.probe, f'{a.vst3}/{name}.vst3', wav, os.path.join(a.outdir, f'{kind}-bypass.json'), 128,
-                      ['--bypass-from', '2.8', '--bypass-to', '4.2'])
-        probs, _ = check_notes(d, sr, bypass=(2.8, 4.2))
-        cut = [e for e in d['events'] if e['type'] == 'off' and abs(e['t'] - 2.8) < 0.01]
-        if not cut:
-            probs.append('no note-off at the bypass')
-        rows.append((kind, sr, '128, bypass 2.8-4.2 s', len([e for e in d['events'] if e['type'] == 'on']), '-',
+    rows, failures = [], 0
+
+    def row(test, kind, sr, block, d, probs, lats):
+        nonlocal failures
+        n = len([e for e in d['events'] if e['type'] == 'on']) if d else '-'
+        rows.append((test, kind, sr, block, n, f'{np.median(lats):.2f}' if lats else '-',
                      'OK' if not probs else '; '.join(probs[:3])))
         failures += bool(probs)
 
-    print('| plugin | Hz | tampon | notes | attaque → note-on (médiane, ms) | résultat |')
-    print('|---|---|---|---|---|---|')
+    def bundle(kind):
+        return f'{a.vst3}/{PLUGINS[kind][0]}.vst3'
+
+    # 0. the installed DLLs are the ones just built
+    for kind, (name, target) in PLUGINS.items():
+        inst = f'{a.vst3}/{name}.vst3/Contents/x86_64-win/{name}.vst3'
+        built = os.path.join(a.build, f'{target}_artefacts', 'Release', 'VST3', f'{name}.vst3', 'Contents', 'x86_64-win', f'{name}.vst3')
+        p = []
+        if not os.path.exists(inst):
+            p.append(f'{inst} missing')
+        elif os.path.exists(built) and md5(inst) != md5(built):
+            p.append('installed DLL differs from plugin/build (copy failed? a host holds it?)')
+        rows.append(('installed = built', kind, '-', '-', '-', '-', 'OK' if not p else '; '.join(p)))
+        failures += bool(p)
+
+    # 1. ten plucks, every rate and block size
+    ref = {}
+    for sr in RATES:
+        wav = os.path.join(a.outdir, f'plucks-{sr}.wav')
+        synth(wav, sr, ONSETS)
+        for kind in PLUGINS:
+            for block in BLOCKS:
+                d = run_probe(a.probe, bundle(kind), wav, os.path.join(a.outdir, f'{kind}-{sr}-{block}.json'), block)
+                probs, lats = check_notes(d, sr, ONSETS)
+                probs += audio_checks(kind, d)
+                pos = [key(e) for e in d['events']]
+                if (kind, sr) not in ref:
+                    ref[(kind, sr)] = d
+                elif pos != [key(e) for e in ref[(kind, sr)]['events']]:
+                    probs.append('events differ from the 32-sample-block run (not sample-accurate)')
+                if kind == 'Inst' and (sr, block) == (48000, 128):
+                    fx = [key(e) for e in ref[('Fx', sr)]['events']]
+                    if pos != fx:
+                        probs.append('Inst events differ from Fx events')
+                row('10 plucks', kind, sr, block, d, probs, lats)
+
+    sr, block = 48000, 128
+    plucks = os.path.join(a.outdir, f'plucks-{sr}.wav')
+    # 2. MIDI channel 5
+    for kind in PLUGINS:
+        d = run_probe(a.probe, bundle(kind), plucks, os.path.join(a.outdir, f'{kind}-ch5.json'), block, ['--channel', '5'])
+        probs, lats = check_notes(d, sr, ONSETS, channel=5)
+        if [k[1] for k in map(key, d['events'])] != [k[1] for k in map(key, ref[(kind, sr)]['events'])]:
+            probs.append('channel 5 events at other samples than channel 1')
+        row('MIDI CH 5', kind, sr, block, d, probs, lats)
+
+    # 3. detector cases (48 kHz, block 128)
+    cases = []
+    w = os.path.join(a.outdir, 'ringing.wav')
+    synth(w, sr, ONSETS, tau=1.5, replace=True)
+    cases.append(('string left ringing, plucked every 1 s', w, ONSETS, 10.0))
+    w = os.path.join(a.outdir, 'held.wav')
+    synth(w, sr, [0.5, 0.8, 2.0, 2.3, 3.5], length=5.0)
+    cases.append(('attacks during a held note ignored', w, [0.5, 2.0, 3.5], 2.0))
+    w = os.path.join(a.outdir, 'first-sample.wav')
+    synth(w, sr, [0.0, 1.0], length=2.0)
+    cases.append(('attack on the first sample', w, [0.0, 1.0], 2.0))
+    w = os.path.join(a.outdir, 'quiet.wav')
+    tones(w, sr, [(0.5, 1.5), (2.5, 3.5)], -35.0, 4.0)
+    cases.append(('tone at -35 dBFS RMS: no note', w, [], 2.0))
+    w = os.path.join(a.outdir, 'sustain.wav')
+    tones(w, sr, [(0.5, 4.0)], -9.0, 5.0)
+    cases.append(('3.5 s sustained tone: one note', w, [0.5], 2.0))
+    for test, wav, attacks, lat in cases:
+        for kind in PLUGINS:
+            d = run_probe(a.probe, bundle(kind), wav, os.path.join(a.outdir, f'{kind}-{os.path.basename(wav)[:-4]}.json'), block)
+            probs, lats = check_notes(d, sr, attacks, max_lat_ms=lat)
+            probs += audio_checks(kind, d)
+            row(test, kind, sr, block, d, probs, lats)
+            if wav.endswith('ringing.wav'):
+                ref[(kind, 'ringing')] = d
+
+    # 4. interruptions in mid-note (48 kHz, block 128)
+    ringing = os.path.join(a.outdir, 'ringing.wav')
+    inter = [
+        ('bypass 2.8-4.2 s', plucks, ['--bypass-from', '2.8', '--bypass-to', '4.2'], 2.8, 4.2, None),
+        ('bypass ends 5 ms after an attack', plucks, ['--bypass-from', '2.8', '--bypass-to', '3.505'], 2.8, 3.505, None),
+        ('bypass 2.8-3.2 s, string ringing', ringing, ['--bypass-from', '2.8', '--bypass-to', '3.2'], 2.8, 3.2, 'ringing'),
+        ('off/on (re-prepare) at 2.8 s, string ringing', ringing, ['--reprepare-at', '2.8'], 2.8, 2.8, 'ringing'),
+    ]
+    for n_test, (test, wav, extra, t_cut, t_resume, refname) in enumerate(inter):
+        for kind in PLUGINS:
+            d = run_probe(a.probe, bundle(kind), wav, os.path.join(a.outdir, f'{kind}-interrupt{n_test}.json'), block, extra)
+            r = ref[(kind, refname)] if refname else ref[(kind, sr)]
+            probs, c, sounding = interrupted(d, r, int(round(t_cut * sr)), int(round(t_resume * sr)), block)
+            if not sounding:
+                probs.append('test setup: no note sounding at the cut')
+            # the generic per-note checks, with the cut note ending at the cut
+            first = min([e['t'] for e in r['events'] if e['type'] == 'on' and e['sample'] >= -(-int(round(t_resume * sr)) // block) * block], default=99)
+            att = [t for t in ONSETS if t * sr < c or t >= first - 0.011]
+            p2, lats = check_notes(d, sr, att, max_lat_ms=10.0, cuts=[c])
+            probs += p2 + audio_checks(kind, d)
+            row(test, kind, sr, block, d, probs, lats)
+
+    print('| test | plugin | Hz | tampon | notes | attaque → note-on (médiane, ms) | résultat |')
+    print('|---|---|---|---|---|---|---|')
     for r in rows:
         print('| ' + ' | '.join(str(x) for x in r) + ' |')
-    print(f'\n{len(rows)} runs, {failures} failing')
+    print(f'\n{len(rows)} checks, {failures} failing')
     sys.exit(1 if failures else 0)
 
 
