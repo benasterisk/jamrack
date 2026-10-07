@@ -76,6 +76,13 @@ aux changements de session. Détails : `docs/local-setup.md`.
   soirées d'essai, 0 EUR pour la bêta Windows. **Aucun code écrit** ;
   cinq décisions du propriétaire en §7 du rapport, puis jalon M0 (prototype
   jetable qui mesure routage, bend et latence dans Live 12.4).
+- **Décisions prises le 7 octobre : VST3 seulement, Windows seulement, tout
+  gratuit (JUCE Starter, VS Community, pluginval, REAPER évaluation), pas de
+  Mac, dossier `plugin/`, branche `feature/plugin`.** Plan d'exécution jalon
+  par jalon (M0 prototype de mesure → M1 port MONO + oracle → M2 coque VST3
+  MONO → M3 POLY bêta) : `docs/plugin-plan.md`, section 6 pour le message à
+  coller dans la session locale. Le JS reste le moteur canonique ; le C++
+  lui est tenu par l'oracle note pour note (section 4 du plan).
 
 ## POLY (polyphonie) — état exact
 
