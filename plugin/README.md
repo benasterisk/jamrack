@@ -3,7 +3,7 @@
 Plan complet : [`docs/plugin-plan.md`](../docs/plugin-plan.md). État : **jalon M0** —
 deux prototypes jetables qui mesurent ce qu'Ableton Live 12 accepte, avant d'écrire
 le moindre traitement du signal. Ils ne reconnaissent **aucune note de guitare** :
-ils détectent juste une attaque et jouent un do (note 60) avec un bend.
+ils détectent juste une attaque et jouent un do (note 60) avec un bend d'un demi-ton.
 
 ## Les deux prototypes M0
 
@@ -14,14 +14,17 @@ ils détectent juste une attaque et jouent un do (note 60) avec un bend.
 
 Ce qu'ils émettent, identique pour les deux : à chaque attaque franche (niveau
 au-dessus de −30 dBFS, réarmement sous −40 dBFS), **note 60 (do), vélocité 100,
-tenue 600 ms** ; pendant la note, le bend **monte d'un ton** (de 100 à 250 ms) puis
-**redescend** (de 250 à 400 ms) ; la note s'arrête à 600 ms. À l'oreille : « do qui
-monte d'un ton et redescend ». Le Fx laisse passer l'audio de la guitare tel quel ;
-l'Inst est muet (il ne fait que du MIDI).
+tenue 600 ms** ; pendant la note, le bend **monte d'un demi-ton** (de 100 à 250 ms,
+avec un instrument réglé sur une plage de bend de 2) puis **redescend** (de 250 à
+400 ms) ; la note s'arrête à 600 ms. À l'oreille : « do qui glisse vers do# et revient ».
+**Laisse plus de 600 ms entre deux attaques** : une attaque pendant la note tenue est
+ignorée. Le Fx laisse passer l'audio de la guitare tel quel ; l'Inst est muet (il ne
+fait que du MIDI).
 
 L'éditeur de chaque plugin affiche **son nom, sa version et le hash git du build**
 (par exemple `JAMRACK GTM Fx  0.0.1  (a1b2c3d)`) et le nombre de notes envoyées : recopie
-cette ligne dans ton compte rendu.
+cette ligne dans ton compte rendu. Un **`+`** après le hash (`a1b2c3d+`) signifie « build
+fait avec des modifications non commitées » : signale-le.
 
 ## Construire et installer (la session le fait pour toi)
 
@@ -42,7 +45,8 @@ n'apparaît : **Alt** + clic sur Rescan).
 
 ## Revenir en arrière (forme courte M0)
 
-1. Fermer Live et REAPER avant chaque build (DLL verrouillée).
+1. Fermer Live et REAPER avant chaque build (DLL verrouillée). Le hash affiché dans
+   l'éditeur est recalculé à chaque build : commiter d'abord, construire ensuite.
 2. Si Live plante ou se bloque à l'ouverture : fermer Live, supprimer les deux dossiers
    `D:\VST3\JAMRACK GTM Fx.vst3` et `D:\VST3\JAMRACK GTM Inst.vst3`, relancer Live :
    il démarre comme avant. Envoie-moi le fichier `Log.txt` du dossier Preferences de Live.
@@ -63,26 +67,30 @@ Préparation (10 min) :
   doivent apparaître.
 
 **1. REAPER (à installer ce soir-là, évaluation gratuite 60 jours) — contre-épreuve.**
-Options → Preferences → Plug-ins → VST → ajouter `;D:\VST3` → **Re-scan**. Piste 1 :
+**Ferme Live d'abord** (il tient le pilote ASIO du Gigcaster). REAPER : Options →
+Preferences → **Audio → Device** : Audio system **ASIO**, driver **GCS-5**, même tampon
+que dans Live ; puis **Plug-ins → VST** → ajouter `;D:\VST3` à la fin du champ
+« VST plug-in paths » → **Re-scan**. Piste 1 :
 Input = canal GUITAR du GCS-5 (mono), monitoring activé ; FX : **JAMRACK GTM Fx** puis
 **ReaSynth** derrière lui ; clic droit sur le bouton d'armement → *Record: output* →
 *Record: output (MIDI)* ; armer, enregistrer 10 notes.
 - [ ] On entend ReaSynth pendant le jeu ? (oui/non)
 - [ ] Après l'arrêt, un item MIDI **contenant des notes** apparaît sur la piste ? (oui/non)
 
-**2. Live — l'effet (a).** Piste audio « Guitare » : *Audio From* = canal GUITAR, *Monitor*
+**2. Live — l'effet (a).** **Ferme REAPER, rouvre Live.** Piste audio « Guitare » : *Audio From* = canal GUITAR, *Monitor*
 = **In**, **JAMRACK GTM Fx** en premier. Piste MIDI « Synthé » : *MIDI From* = Guitare,
 puis dans le menu du dessous **JAMRACK GTM Fx** ; *Monitor* = **In** ; un instrument
 réglé sur **plage de bend 2** (Wavetable / Operator : *Pitch Bend Range* = 2).
 - [ ] *MIDI From* → Guitare liste-t-il **JAMRACK GTM Fx** ? (oui/non)
 - [ ] Notes reçues (le synthé joue un do à chaque attaque) ? (oui/non)
-- [ ] **Bend entendu pendant la note** : le do monte d'**un ton** puis redescend ? (oui/non ;
-  s'il monte de six tons, l'instrument est resté en plage 12)
+- [ ] **Bend entendu pendant la note** : le do monte d'**un demi-ton** puis redescend ?
+  (oui/non ; s'il monte de **trois tons** (un triton), l'instrument est resté en plage 12)
 
-**3. Live — l'instrument (b).** Piste MIDI : **JAMRACK GTM Inst** ; sur cette piste,
-le panneau du plugin a-t-il un sélecteur ***Audio From*** (side-chain) ? Si oui :
-side-chain = piste Guitare ; une deuxième piste MIDI avec un instrument, *MIDI From* =
-cette piste.
+**3. Live — l'instrument (b).** Piste MIDI « Inst » : y poser **JAMRACK GTM Inst**. Dans
+la barre de titre du plugin (en haut du panneau du périphérique), Live doit afficher un
+sélecteur ***Audio From*** (side-chain) : le régler sur la piste **Guitare**. Puis une
+deuxième piste MIDI « Synthé 2 » avec le même instrument (plage de bend 2) : *MIDI From*
+= piste « Inst », puis dans le menu du dessous **JAMRACK GTM Inst** ; *Monitor* = **In**.
 - [ ] Sélecteur *Audio From* présent sur l'Inst ? (oui/non)
 - [ ] Notes reçues par l'instrument ? (oui/non)
 - [ ] Lequel des deux Live liste-t-il dans *MIDI From* : Fx, Inst, les deux, aucun ?
@@ -116,10 +124,10 @@ côtés).
 Compte rendu M0 — date : ____
 Live : 12.__.__ (Help → About Live)
 Pilote : GCS-5, tampon ___, fréquence d'échantillonnage ___ kHz
-Build : (ligne lue dans l'éditeur du plugin, ex. « JAMRACK GTM Fx 0.0.1 (a1b2c3d) »)
+Build : (ligne lue dans l'éditeur du plugin, ex. « JAMRACK GTM Fx 0.0.1 (a1b2c3d) », avec le « + » s'il y en a un)
 
 1. REAPER : ReaSynth entendu oui/non ; item MIDI avec notes oui/non
-2. Live, Fx : listé dans MIDI From oui/non ; notes oui/non ; bend d'un ton entendu oui/non
+2. Live, Fx : listé dans MIDI From oui/non ; notes oui/non ; bend d'un demi-ton entendu oui/non
 3. Live, Inst : Audio From présent oui/non ; notes oui/non ; Live liste : Fx / Inst / les deux / aucun
 4. Armement : armer Synthé coupe la guitare oui/non
 5. Latence (médianes, ms) : plugin 64 ___/___ ; 128 ___/___ ; 256 ___/___ ; page web ___/___ ;

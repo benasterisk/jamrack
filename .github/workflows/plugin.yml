@@ -45,7 +45,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jamrack-vst3-win64
+          if-no-files-found: error
           path: |
-            plugin/build/**/_artefacts/Release/VST3/*.vst3
+            plugin/build/*_artefacts/Release/VST3/*.vst3
             plugin/build/pluginval
             plugin/README.md

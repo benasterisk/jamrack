@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "jamrack_git_hash.h"   // generated at build time (plugin/cmake/git_hash.cmake)
 
 #include <cmath>
 
@@ -148,7 +149,9 @@ void GtmPrototypeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
             }
         }
 
-        if (! armed && env < rearmMs)
+        // Re-arm only once the note is over: an attack during the held note
+        // is ignored, never replayed late at the note-off.
+        if (! armed && ! noteOn && env < rearmMs)
             armed = true;
 
         if (armed && ! noteOn && env > triggerMs)
@@ -171,6 +174,35 @@ void GtmPrototypeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         buffer.clear (ch, 0, n);
    #endif
     // Fx: the audio buffer is left untouched (pass-through)
+}
+
+// Host bypass (the VST3 bypass parameter JUCE exposes): the sounding note is
+// released at once (otherwise it would hang, and its timeline would resume
+// late after un-bypass), the detector starts afresh, the Fx passes the audio
+// through and the Inst stays silent (JUCE's default bypass would copy the
+// side-chain guitar to the instrument's output).
+void GtmPrototypeProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+{
+    juce::ScopedNoDenormals noDenormals;
+    midi.clear();
+    if (noteOn || flushPending)
+    {
+        midi.addEvent (juce::MidiMessage::noteOff (noteChannel, note), 0);
+        midi.addEvent (juce::MidiMessage::pitchWheel (noteChannel, 8192), 0);
+        lastWheel = 8192;
+    }
+    flushPending = false;
+    noteOn = false;
+    env = 0.0;
+    armed = true;
+    sinceOn = 0;
+    samplesToNextBend = 0;
+   #if JAMRACK_IS_INST
+    for (int ch = 0; ch < getTotalNumOutputChannels(); ++ch)
+        buffer.clear (ch, 0, buffer.getNumSamples());
+   #else
+    juce::ignoreUnused (buffer);   // Fx: audio passes through unchanged
+   #endif
 }
 
 juce::AudioProcessorEditor* GtmPrototypeProcessor::createEditor()

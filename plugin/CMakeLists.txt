@@ -58,34 +58,17 @@ endif()
 
 # Short git hash of the build, shown in the plugin editor so that every
 # owner's report names the exact build it tested ("+" = uncommitted changes).
-find_package(Git QUIET)
-set(JAMRACK_GIT_HASH "nogit")
-if(GIT_FOUND)
-  execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
-                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-                  OUTPUT_VARIABLE JAMRACK_GIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE
-                  RESULT_VARIABLE git_result ERROR_QUIET)
-  execute_process(COMMAND "${GIT_EXECUTABLE}" status --porcelain --untracked-files=no
-                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-                  OUTPUT_VARIABLE git_dirty OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-  if(NOT git_result EQUAL 0)
-    set(JAMRACK_GIT_HASH "nogit")
-  elseif(git_dirty)
-    string(APPEND JAMRACK_GIT_HASH "+")
-  endif()
-  # Re-run this configure step (and so refresh the hash) after every commit,
-  # checkout or staged change, so that a later `cmake --build` never ships a
-  # build labelled with an old hash.
-  execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse --absolute-git-dir
-                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-                  OUTPUT_VARIABLE git_dir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-  foreach(f HEAD index logs/HEAD)
-    if(EXISTS "${git_dir}/${f}")
-      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${git_dir}/${f}")
-    endif()
-  endforeach()
-endif()
-message(STATUS "JAMRACK plugin ${PROJECT_VERSION} (${JAMRACK_GIT_HASH})")
+# Computed at EVERY build (not at configure time) by a custom target that
+# rewrites a generated header only when the hash changes; only the editor and
+# the processor's label function include it, so a new commit recompiles two
+# files, not JUCE.
+set(JAMRACK_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+add_custom_target(jamrack_git_hash ALL
+  COMMAND "${CMAKE_COMMAND}" -DSRC="${CMAKE_CURRENT_SOURCE_DIR}" -DOUT="${JAMRACK_GEN_DIR}/jamrack_git_hash.h"
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/git_hash.cmake"
+  BYPRODUCTS "${JAMRACK_GEN_DIR}/jamrack_git_hash.h"
+  COMMENT "JAMRACK: git hash of the build"
+  VERBATIM)
 
 if(JAMRACK_DSP_ONLY)
   # The JUCE-free DSP library (dsp/) arrives in M1; nothing to build in M0.
@@ -128,8 +111,10 @@ function(jamrack_add_m0_prototype target product code is_synth categories)
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
-    JAMRACK_IS_INST=$<IF:$<BOOL:${is_synth}>,1,0>
-    JAMRACK_GIT_HASH="${JAMRACK_GIT_HASH}")
+    JAMRACK_IS_INST=$<IF:$<BOOL:${is_synth}>,1,0>)
+
+  add_dependencies(${target} jamrack_git_hash)
+  target_include_directories(${target} PRIVATE "${JAMRACK_GEN_DIR}")
 
   target_link_libraries(${target} PRIVATE
     juce::juce_audio_utils

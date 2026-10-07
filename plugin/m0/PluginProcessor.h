@@ -27,9 +27,6 @@
 #ifndef JAMRACK_IS_INST
  #define JAMRACK_IS_INST 0
 #endif
-#ifndef JAMRACK_GIT_HASH
- #define JAMRACK_GIT_HASH "nogit"
-#endif
 
 class GtmPrototypeProcessor final : public juce::AudioProcessor
 {
@@ -42,7 +39,9 @@ public:
     void reset() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
+    using AudioProcessor::processBlockBypassed;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
