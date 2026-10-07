@@ -16,16 +16,18 @@
 // bend (at the usual +/-2 semitone range) tells the owner, by ear, whether
 // Live 12 routes VST3 pitch bend to the receiving instrument.
 //
-// Attack = a RISE: the 5 ms mean-square envelope is above -30 dBFS AND at
-// least twice (+3 dB) a 30 ms envelope. Re-armed once the note is over and
-// the rise has died down (fast below 1.25 x slow, or below -30 dBFS), so a
-// string left ringing does not block the next pluck (an absolute re-arm
-// level did: 1 note for 10 replucks), and an attack during the held note is
-// ignored, never replayed late. Reset, re-prepare and bypass keep the
-// envelopes and disarm: a string still ringing then plays nothing. Measured
-// on GuitarSet (360 pickup recordings scaled to a -6 dBFS peak, attacks that
-// arrive while no note sounds): 68 % caught, 94.6 % of the notes on a real
-// attack (the -30/-40 dBFS rule: 39 % and 94.6 %).
+// Attack = a RISE: the 5 ms mean-square envelope is above -45 dBFS AND at
+// least twice a 30 ms one, which takes a sudden jump of about 6 dB. Re-armed
+// once the note is over and the rise has died down (fast below 1.25 x slow,
+// or below -45 dBFS), so a string left ringing does not block the next pluck
+// (an absolute re-arm level did: 1 note for 10 replucks), and an attack
+// during the held note is ignored, never replayed late. Reset, re-prepare
+// and bypass keep the envelopes and disarm: a string still ringing then
+// plays nothing. A NaN/Inf input clears the envelopes at the next block.
+// Measured on GuitarSet (360 pickup recordings, attacks that arrive while no
+// note sounds; plugin/m0/sim_detector.py): 72 / 73 / 71 / 61 % caught at a
+// -6 / -12 / -18 / -24 dBFS peak, 87 to 96 % of the notes on a real attack
+// (the first rule, -30 dBFS and re-arm below -40: 39 / 37 / 13 / 0 %).
 //
 // Real-time rules (plan 3.3): nothing in processBlock allocates, locks or
 // sorts; parameters are read through the atomic raw value.
@@ -107,7 +109,7 @@ private:
     double sampleRate = 44100.0;
     double fastCoef = 0.0, slowCoef = 0.0;   // one-pole smoothing of x^2 (5 ms, 30 ms)
     double envFast = 0.0, envSlow = 0.0;     // mean squares of channel 0
-    bool armed = false;            // set by one sample without a rise, note off
+    bool armed = false;            // set once the note is over and the rise has died down
     bool noteOn = false;           // note 60 is sounding
     int noteChannel = 1;           // channel the sounding note was sent on
     int64_t sinceOn = 0;           // samples since the note-on
@@ -117,8 +119,8 @@ private:
 
     int64_t rampStart = 0, rampPeak = 0, rampEnd = 0, noteLength = 0;
 
-    static constexpr double triggerDb = -30.0;   // fast envelope floor
-    static constexpr double riseRatio = 2.0;     // fast / slow (mean squares): +3 dB
+    static constexpr double triggerDb = -45.0;   // fast envelope floor
+    static constexpr double riseRatio = 2.0;     // fast / slow (mean squares): a ~6 dB jump
     static constexpr double rearmRatio = 1.25;   // hysteresis: the rise must die down
     static constexpr double fastSeconds = 0.005, slowSeconds = 0.030;
     static constexpr int bendEvery = 64;

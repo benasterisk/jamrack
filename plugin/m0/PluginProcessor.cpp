@@ -121,6 +121,10 @@ void GtmPrototypeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     const double triggerMs = std::pow (10.0, triggerDb / 10.0);   // mean-square threshold
 
+    // the envelopes survive reset and bypass: one NaN/Inf sample must not stop the detector for good
+    if (! std::isfinite (envFast) || ! std::isfinite (envSlow))
+        envFast = envSlow = 0.0;
+
     for (int s = 0; s < n; ++s)
     {
         const double x = in != nullptr ? (double) in[s] : 0.0;
@@ -181,6 +185,8 @@ void GtmPrototypeProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
 void GtmPrototypeProcessor::trackEnvelope (const float* in, int n) noexcept
 {
+    if (! std::isfinite (envFast) || ! std::isfinite (envSlow))
+        envFast = envSlow = 0.0;
     for (int s = 0; s < n; ++s)
     {
         const double x = in != nullptr ? (double) in[s] : 0.0;

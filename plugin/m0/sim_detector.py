@@ -101,59 +101,59 @@ def score(trig_t, att):
 def main():
     root = sys.argv[1]
     files = sorted(glob.glob(os.path.join(root, 'audio_mono-pickup_mix', '*.wav')))
-    thr, rearm = 10 ** (-30 / 10), 10 ** (-40 / 10)
-    variants = {'old -30/-40': None}
+    levels = (-6, -12, -18, -24)                 # file peak, dBFS
+    rules = {'old -30/-40 dBFS': ('old', -30.0, -40.0)}
     for r, ts, h in ((2.0, 0.03, 2.0), (2.0, 0.03, 1.5), (2.0, 0.03, 1.25), (2.0, 0.05, 1.5), (1.5, 0.03, 1.25)):
-        variants[f'new r={r} slow={int(ts*1000)}ms rearm<{h}'] = (r, ts, h)
-    tot = {k: np.zeros(4, int) for k in variants}
-    lag = {k: [] for k in variants}
-    per_kind = {k: {'solo': np.zeros(4, int), 'comp': np.zeros(4, int)} for k in variants}
-    peaks = []
+        rules[f'rise r={r} slow={int(ts*1000)}ms rearm<{h}, floor -30'] = ('new', -30.0, r, ts, h)
+    for floor in (-40.0, -45.0, -50.0):
+        rules[f'rise r=2.0 slow=30ms rearm<1.25, floor {int(floor)}'] = ('new', floor, 2.0, 0.03, 1.25)
+    tot = {(k, L): np.zeros(4, int) for k in rules for L in levels}
+    lag = {(k, L): [] for k in rules for L in levels}
     for f in files:
         base = os.path.basename(f).replace('_mix.wav', '')
         jams = json.load(open(os.path.join(root, 'annotation', base + '.jams'), encoding='utf-8'))
-        onsets = [d['time'] for a in jams['annotations'] if a['namespace'] == 'note_midi' for d in a['data']]
-        att = clusters(onsets)
+        att = clusters([d['time'] for a in jams['annotations'] if a['namespace'] == 'note_midi' for d in a['data']])
         x, sr = sf.read(f, dtype='float64')
         if x.ndim > 1:
             x = x[:, 0]
-        pk = np.max(np.abs(x))
-        peaks.append(20 * np.log10(pk))
-        x = x * (0.5 / pk)
+        x = x * (0.5 / np.max(np.abs(x)))          # -6 dBFS peak; other levels scale the thresholds
         x2 = x * x
         envF = env(x2, 0.005, sr)
         slows = {}
-        kind = 'solo' if base.endswith('solo') else 'comp'
-        for name, v in variants.items():
-            if v is None:
-                ons = run_old(envF, sr, thr, rearm)
-            else:
-                r, ts, h = v
-                if ts not in slows:
-                    slows[ts] = env(x2, ts, sr)
-                rising = (envF > thr) & (envF > r * slows[ts])
-                quiet = ~((envF > thr) & (envF > h * slows[ts]))
-                ons = run_new(rising, sr, quiet)
-            tt = [o / sr for o in ons]
-            s = np.array(score(tt, att))
-            tot[name] += s
-            per_kind[name][kind] += s
-            a = np.asarray(att)
-            for t in tt:
-                d = t - a
-                d = d[(d >= -0.025) & (d <= 0.05)]
-                if len(d):
-                    lag[name].append(1000 * d.min())
-    print(f'{len(files)} files, raw peak {np.median(peaks):.1f} dBFS median (min {min(peaks):.1f}), scaled to -6 dBFS\n')
-    print('| rule | triggers | on a real attack (precision) | free attacks caught (recall) | solo recall | comp recall | lag median / p90 ms |')
-    print('|---|---|---|---|---|---|---|')
-    for name in variants:
-        ok, n, det, el = tot[name]
-        so, co = per_kind[name]['solo'], per_kind[name]['comp']
-        lg = np.array(lag[name])
-        print(f'| {name} | {n} | {100*ok/max(n,1):.1f} % | {100*det/max(el,1):.1f} % ({det}/{el}) | '
-              f'{100*so[2]/max(so[3],1):.1f} % | {100*co[2]/max(co[3],1):.1f} % | '
-              f'{np.median(lg):.1f} / {np.percentile(lg, 90):.1f} |')
+        a = np.asarray(att)
+        for L in levels:
+            g2 = 10 ** ((L + 6) / 10)              # mean-square gain of that level
+            for name, v in rules.items():
+                if v[0] == 'old':
+                    ons = run_old(envF, sr, 10 ** (v[1] / 10) / g2, 10 ** (v[2] / 10) / g2)
+                else:
+                    _, floor, r, ts, h = v
+                    if ts not in slows:
+                        slows[ts] = env(x2, ts, sr)
+                    thr = 10 ** (floor / 10) / g2
+                    rising = (envF > thr) & (envF > r * slows[ts])
+                    quiet = ~((envF > thr) & (envF > h * slows[ts]))
+                    ons = run_new(rising, sr, quiet)
+                tt = [o / sr for o in ons]
+                tot[(name, L)] += np.array(score(tt, att))
+                for t in tt:
+                    d = t - a
+                    d = d[(d >= -0.025) & (d <= 0.05)]
+                    if len(d):
+                        lag[(name, L)].append(1000 * d.min())
+    print('window: trigger within -25..+50 ms of an annotated attack (GuitarSet onsets lag the audio by 5-20 ms)')
+    print(f'{len(files)} files, scaled to a peak of {", ".join(str(L) for L in levels)} dBFS')
+    print('cells: attacks caught while no note sounds (recall) / notes on a real attack (precision) / lag median ms')
+    print()
+    print('| rule | ' + ' | '.join(f'peak {L} dBFS' for L in levels) + ' |')
+    print('|---|' + '---|' * len(levels))
+    for name in rules:
+        cells = []
+        for L in levels:
+            ok, n, det, el = tot[(name, L)]
+            lg = lag[(name, L)]
+            cells.append(f'{100*det/max(el,1):.1f} % / {100*ok/max(n,1):.1f} % / {np.median(lg) if lg else float("nan"):.1f}')
+        print(f'| {name} | ' + ' | '.join(cells) + ' |')
 
 
 if __name__ == '__main__':

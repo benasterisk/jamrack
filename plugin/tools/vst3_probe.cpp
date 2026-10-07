@@ -20,6 +20,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_events/juce_events.h>
 
+#include <cmath>
 #include <cstdio>
 #include <map>
 
@@ -53,7 +54,7 @@ namespace
         return a.plugin.isNotEmpty() && a.wav.isNotEmpty() && a.out.isNotEmpty() && a.block > 0;
     }
 
-    juce::String num (double v) { return juce::String (v, 9); }
+    juce::String num (double v) { return std::isfinite (v) ? juce::String (v, 9) : juce::String ("null"); }
 }
 
 int main (int argc, char** argv)
@@ -175,6 +176,8 @@ int main (int argc, char** argv)
         {
             const double x = start + s < total ? wav.getSample (0, start + s) : 0.0;
             const double y = buf.getSample (0, s);
+            if (! std::isfinite (x))
+                continue;    // a NaN/Inf test sample cannot be compared
             passMaxDiff = juce::jmax (passMaxDiff, std::abs (y - x));
             outMaxAbs = juce::jmax (outMaxAbs, std::abs (y));
         }
