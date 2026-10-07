@@ -474,7 +474,7 @@ une borne haute, pas une prévision.
 Calendrier : borne haute 1 à 3 mois, dictée par les soirées d'essai, pas par les
 sessions. M0 à M2 donnent déjà une bêta MONO utilisable dans Live.
 
-**Décisions du propriétaire** :
+**Décisions du propriétaire** (prises le 7 octobre 2026 : VST3 seul, Windows seul, tout gratuit, pas de Mac, dossier `plugin/` ; plan d'exécution dans `docs/plugin-plan.md`) :
 
 1. **Formats** : VST3 + CLAP d'abord, AU ensuite, pas d'AAX (recommandé tel quel).
 2. **Framework et licence** : JUCE Starter, sources MIT et avis JUCE dans le README ;
