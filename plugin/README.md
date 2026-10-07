@@ -55,6 +55,24 @@ n'apparaît : **Alt** + clic sur Rescan).
    **Alt + Rescan**, puis capture d'écran de Settings → Plug-Ins.
 4. **Avant d'installer le vrai plugin (M2), supprimer les deux `.vst3` de M0** de `D:\VST3`.
 
+## Test Live sans guitare (5 minutes)
+
+Pour répondre aux questions de routage sans brancher la guitare, un fichier de
+**10 attaques** (une par seconde, 48 kHz) a été déposé dans ta bibliothèque Live :
+navigateur de Live → **User Library → Samples → JAMRACK → `m0-plucks-48k.wav`**.
+
+1. Glisse le fichier dans la piste audio « Guitare » (case de clip vide). Dans la vue du
+   clip (en bas), **désactive Warp** (sinon Live étire le fichier au tempo du Set).
+2. Pose **JAMRACK GTM Fx** sur cette piste, puis la piste MIDI « Synthé » comme à l'étape 2
+   de la check-list (*MIDI From* = Guitare → JAMRACK GTM Fx, *Monitor* In, instrument en
+   plage de bend 2).
+3. Lance le clip : le synthé doit jouer 10 do, chacun avec le glissement d'un demi-ton.
+4. Même chose avec **JAMRACK GTM Inst** sur une piste MIDI, *Audio From* (side-chain) =
+   Guitare.
+
+Ce test répond aux questions 2 et 3 de la check-list (routage, bend, side-chain) ; la
+latence et le jeu réel demandent toujours la guitare.
+
 ## Check-list de la soirée M0
 
 Préparation (10 min) :
@@ -156,6 +174,27 @@ micro et enceintes intégrés, REAPER en WASAPI, 48 kHz, tampon 256 ; build
   avec le Gigcaster).
 - Reste à faire : tout Live 12 (Fx et Inst dans *MIDI From*, side-chain *Audio From*,
   armement, décalage d'enregistrement), mesures de latence à 64/128/256.
+
+## Tests sans DAW (hôte VST3 en ligne de commande)
+
+`plugin/tools/vst3_probe.cpp` (cible `jamrack_vst3_probe`) est un petit hôte VST3 : il
+charge un `.vst3` **installé**, lui envoie un fichier WAV bloc par bloc comme un DAW, et
+écrit chaque message MIDI émis, à l'échantillon près, en JSON. `plugin/m0/check_probe.py`
+fabrique les WAV de test et vérifie les deux prototypes :
+
+```powershell
+python plugin/m0/check_probe.py --probe D:\JamRack\pluginuild\jamrack_vst3_probe_artefacts\Release\jamrack_vst3_probe.exe --outdir $env:TEMP\m0-probe
+```
+
+**Résultat du 8 octobre 2026** (builds installés dans `D:\VST3`) : **40 essais sur 40
+conformes** — les deux plugins × 44,1 / 48 / 96 kHz × tampons 32 à 1024, plus canal MIDI 5
+et bypass de l'hôte en pleine note. Pour chaque attaque : note 60 vélocité 100 émise
+**0,28 à 0,32 ms** après l'attaque, molette remise à 8192 au même échantillon, rampe 8192 →
+~12 270 → 8192 entre 100 et 400 ms (un message tous les 64 échantillons), note-off à
+600 ms pile ; positions identiques quel que soit le tampon ; l'effet laisse passer l'audio
+**à l'identique**, l'instrument reçoit bien le signal par son entrée side-chain et reste
+muet ; latence déclarée 0. Ce que ce test **ne dit pas** : comment Live route ce MIDI
+(*MIDI From*, *Audio From*, armement) et la latence réelle — c'est la soirée.
 
 ## Avis de licence
 

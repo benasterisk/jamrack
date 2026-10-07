@@ -126,3 +126,18 @@ endfunction()
 
 jamrack_add_m0_prototype(jamrack_gtm_fx   "JAMRACK GTM Fx"   Gtm0 FALSE "Fx;Tools")
 jamrack_add_m0_prototype(jamrack_gtm_inst "JAMRACK GTM Inst" Gtm9 TRUE  "Instrument;Tools")
+
+# vst3_probe: a command-line VST3 host that loads an installed .vst3, feeds
+# it a WAV and records the MIDI it emits (plugin/tools/vst3_probe.cpp). Used
+# to check the plugins headlessly, without a DAW.
+juce_add_console_app(jamrack_vst3_probe PRODUCT_NAME "vst3_probe")
+target_sources(jamrack_vst3_probe PRIVATE tools/vst3_probe.cpp)
+target_compile_definitions(jamrack_vst3_probe PRIVATE
+  JUCE_PLUGINHOST_VST3=1
+  JUCE_WEB_BROWSER=0
+  JUCE_USE_CURL=0)
+target_link_libraries(jamrack_vst3_probe PRIVATE
+  juce::juce_audio_utils
+  PUBLIC
+  juce::juce_recommended_config_flags
+  juce::juce_recommended_warning_flags)
