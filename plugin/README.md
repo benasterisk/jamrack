@@ -12,13 +12,14 @@ ils détectent juste une attaque et jouent un do (note 60) avec un bend d'un dem
 | **JAMRACK GTM Fx** | `Gtm0` | effet audio, sur la piste guitare | Live liste-t-il un **effet** dans *MIDI From* ? |
 | **JAMRACK GTM Inst** | `Gtm9` | instrument, avec une entrée *side-chain* | Live propose-t-il un sélecteur ***Audio From*** sur l'instrument ? |
 
-Ce qu'ils émettent, identique pour les deux : à chaque attaque franche (niveau
-au-dessus de −30 dBFS, réarmement sous −40 dBFS), **note 60 (do), vélocité 100,
-tenue 600 ms** ; pendant la note, le bend **monte d'un demi-ton** (de 100 à 250 ms,
+Ce qu'ils émettent, identique pour les deux : à chaque attaque franche (le son
+**monte** d'au moins 3 dB en quelques millisecondes, au-dessus de −30 dBFS),
+**note 60 (do), vélocité 100, tenue 600 ms** ; pendant la note, le bend **monte d'un demi-ton** (de 100 à 250 ms,
 avec un instrument réglé sur une plage de bend de 2) puis **redescend** (de 250 à
 400 ms) ; la note s'arrête à 600 ms. À l'oreille : « do qui glisse vers do# et revient ».
 **Laisse plus de 600 ms entre deux attaques** : une attaque pendant la note tenue est
-ignorée. Le Fx laisse passer l'audio de la guitare tel quel ; l'Inst est muet (il ne
+ignorée. Pas besoin d'étouffer la corde : on peut la laisser sonner et la repincer.
+Le Fx laisse passer l'audio de la guitare tel quel ; l'Inst est muet (il ne
 fait que du MIDI).
 
 L'éditeur de chaque plugin affiche **son nom, sa version et le hash git du build**
@@ -37,11 +38,14 @@ cmake --build plugin/build --config Release
 ```
 
 Le build copie `JAMRACK GTM Fx.vst3` et `JAMRACK GTM Inst.vst3` dans `D:\VST3`.
-Validation : `D:\tools\pluginval\pluginval.exe --strictness-level 5 --validate "D:\VST3\JAMRACK GTM Fx.vst3"` (idem Inst).
+Validation : `D:\tools\pluginval\pluginval.exe --strictness-level 5 --validate "D:\VST3\JAMRACK GTM Fx.vst3"` (idem Inst),
+puis le validateur officiel de Steinberg (SDK VST3 3.8.1 compilé dans `D:\tools\vst3sdk`) :
+`D:\tools\vst3sdk\build\bin\Release\validator.exe "D:\VST3\JAMRACK GTM Fx.vst3"` (idem Inst).
 
 Dans Live 12 (une seule fois) : Options → **Settings** (Ctrl+,) → onglet **Plug-Ins** →
 **Use VST3 Plug-In Custom Folder = On** → Browse → `D:\VST3` → **Rescan** (si rien
-n'apparaît : **Alt** + clic sur Rescan).
+n'apparaît : **Alt** + clic sur Rescan). Vérifié le 8 octobre dans la base de plugins
+de Live 12.4.6 Trial : **aucun plugin n'y est encore scanné**, ce réglage reste à faire.
 
 ## Revenir en arrière (forme courte M0)
 
@@ -186,15 +190,37 @@ fabrique les WAV de test et vérifie les deux prototypes :
 python plugin/m0/check_probe.py --probe D:\JamRack\plugin\build\jamrack_vst3_probe_artefacts\Release\jamrack_vst3_probe.exe --outdir $env:TEMP\m0-probe
 ```
 
-**Résultat du 8 octobre 2026** (builds installés dans `D:\VST3`) : **40 essais sur 40
-conformes** — les deux plugins × 44,1 / 48 / 96 kHz × tampons 32 à 1024, plus canal MIDI 5
-et bypass de l'hôte en pleine note. Pour chaque attaque : note 60 vélocité 100 émise
-**0,28 à 0,32 ms** après l'attaque, molette remise à 8192 au même échantillon, rampe 8192 →
-~12 270 → 8192 entre 100 et 400 ms (un message tous les 64 échantillons), note-off à
-600 ms pile ; positions identiques quel que soit le tampon ; l'effet laisse passer l'audio
-**à l'identique**, l'instrument reçoit bien le signal par son entrée side-chain et reste
-muet ; latence déclarée 0. Ce que ce test **ne dit pas** : comment Live route ce MIDI
-(*MIDI From*, *Audio From*, armement) et la latence réelle — c'est la soirée.
+**Résultat du 8 octobre 2026** (builds installés dans `D:\VST3`, identiques octet pour
+octet à ceux de `plugin/build`) : **58 vérifications sur 58 conformes**.
+- Les deux plugins × 44,1 / 48 / 96 kHz × tampons 32 à 1024, plus canal MIDI 5 : pour
+  chaque attaque, note 60 vélocité 100 émise **0,28 à 0,32 ms** après l'attaque, molette
+  remise à 8192 au même échantillon, rampe à ±1 près de la droite 8192 → 12 288 → 8192
+  entre 100 et 400 ms (un message tous les 64 échantillons), un seul 8192 juste après
+  400 ms, note-off 60 à 600 ms pile ; événements identiques quel que soit le tampon ;
+  l'effet laisse passer l'audio **à l'identique**, l'instrument reste muet ; latence
+  déclarée 0.
+- Cas du détecteur : corde **laissée sonner** et repincée chaque seconde → 10 notes sur
+  10 (1,05 ms) ; attaques pendant une note tenue → ignorées ; son à −35 dBFS → aucune
+  note ; son tenu 3,5 s → une seule note ; attaque au tout premier échantillon → note.
+- Interruptions en pleine note : **bypass** de l'hôte (dont un bypass qui se termine
+  5 ms après une attaque, et un autre pendant que la corde sonne encore) et
+  **désactivation / réactivation** (`--reprepare-at`) : note-off et molette à 8192 au
+  bloc de la coupure, aucune note fantôme ensuite, puis exactement les mêmes événements
+  que sans interruption.
+- **pluginval niveau 5 : SUCCESS** et **validateur Steinberg : 47 tests sur 47** sur les
+  deux plugins.
+
+Le détecteur a aussi été mesuré sur **GuitarSet** (360 enregistrements pris au capteur de la
+guitare, ramenés à une crête de −6 dBFS, notes tenues 600 ms comme le prototype) : il
+attrape **68 %** des attaques jouées quand aucune note ne sonne, et **94,6 %** de ses
+notes tombent sur une vraie attaque ; l'ancienne règle (réarmement sous −40 dBFS) n'en
+attrapait que **39 %** (même précision), parce qu'une corde qui sonne encore bloquait la
+suivante. Ce n'est qu'un détecteur de test : la vraie reconnaissance des notes arrive en
+M1.
+
+Ce que ces tests **ne disent pas** : comment Live route ce MIDI (*MIDI From*, *Audio
+From*, armement), à quel niveau Live envoie le signal, et la latence réelle — c'est la
+soirée.
 
 ## Avis de licence
 
