@@ -84,6 +84,35 @@ aux changements de session. Détails : `docs/local-setup.md`.
   coller dans la session locale. Le JS reste le moteur canonique ; le C++
   lui est tenu par l'oracle note pour note (section 4 du plan).
 
+## Plugin VST3 — état exact
+
+- **Jalon M0 fait (7 octobre 2026, branche `feature/plugin`)** : deux
+  prototypes **jetables** dans `plugin/m0/` (aucun DSP de guitare : un
+  détecteur d'attaque joue un do 60 tenu 600 ms avec un bend d'un ton aller-
+  retour entre 100 et 400 ms) pour mesurer Live 12 : **JAMRACK GTM Fx**
+  (`Gtm0`, effet, audio passe-tout) et **JAMRACK GTM Inst** (`Gtm9`,
+  instrument dont la seule entrée est un bus *side-chain* auxiliaire,
+  `getPluginHasMainInput() = false`). `plugin/CMakeLists.txt` : JUCE 8.0.15
+  par FetchContent (jamais copié), runtime MSVC statique, `/fp:precise`,
+  version + hash git court (rafraîchi à chaque commit) dans l'éditeur, copie
+  dans `D:\VST3` (`JAMRACK_COPY_AFTER_BUILD`). pluginval 1.0.4 niveau 5 :
+  SUCCESS sur les deux. CI `.github/workflows/plugin.yml` (Windows : build +
+  pluginval + artefact). `plugin/README.md` : check-list de la soirée M0,
+  modèle de compte rendu, retour arrière, avis de licence.
+- **Outillage local (installé le 7 octobre)** : CMake 4.4.4 (winget, portée
+  utilisateur, sur le PATH utilisateur ; une fenêtre ouverte avant
+  l'installation ne le voit pas), MSVC des **Build Tools 2022** (la
+  Community 2022 n'a pas la charge C++) → générateur **« Visual Studio 17
+  2022 »**, pluginval 1.0.4 dans `D:\tools\pluginval\`, dossiers `D:\VST3` et
+  `D:\VST3-archive`. Build : `cmake -S plugin -B plugin/build -G "Visual
+  Studio 17 2022" -A x64` puis `cmake --build plugin/build --config Release`
+  (Live et REAPER **fermés**). Live 12 non trouvé aux emplacements standard
+  de `C:` lors de la vérification.
+- **Suite** : soirée M0 du propriétaire (check-list du README), compte rendu,
+  puis M1 (port MONO + oracle). Le code `plugin/m0/` est jeté en M2 (garder
+  le CMake et la CI) ; supprimer les deux `.vst3` M0 de `D:\VST3` avant
+  d'installer M2.
+
 ## POLY (polyphonie) — état exact
 
 - **Décisions du propriétaire** (plan §0) : sélecteur **MONO / POLY** sur la
