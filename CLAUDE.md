@@ -88,8 +88,8 @@ aux changements de session. Détails : `docs/local-setup.md`.
 
 - **Jalon M0 fait (7 octobre 2026, branche `feature/plugin`)** : deux
   prototypes **jetables** dans `plugin/m0/` (aucun DSP de guitare : un
-  détecteur d'attaque joue un do 60 tenu 600 ms avec un bend d'un ton aller-
-  retour entre 100 et 400 ms) pour mesurer Live 12 : **JAMRACK GTM Fx**
+  détecteur d'attaque joue un do 60 tenu 600 ms avec un bend d'un demi-ton
+  aller-retour entre 100 et 400 ms) pour mesurer Live 12 : **JAMRACK GTM Fx**
   (`Gtm0`, effet, audio passe-tout) et **JAMRACK GTM Inst** (`Gtm9`,
   instrument dont la seule entrée est un bus *side-chain* auxiliaire,
   `getPluginHasMainInput() = false`). `plugin/CMakeLists.txt` : JUCE 8.0.15
@@ -106,8 +106,31 @@ aux changements de session. Détails : `docs/local-setup.md`.
   2022 »**, pluginval 1.0.4 dans `D:\tools\pluginval\`, dossiers `D:\VST3` et
   `D:\VST3-archive`. Build : `cmake -S plugin -B plugin/build -G "Visual
   Studio 17 2022" -A x64` puis `cmake --build plugin/build --config Release`
-  (Live et REAPER **fermés**). Live 12 non trouvé aux emplacements standard
-  de `C:` lors de la vérification.
+  (Live et REAPER **fermés**). Live 12.4.6 **Trial** installé depuis
+  (`C:\ProgramData\Ableton\Live 12 Trial`, bibliothèque utilisateur
+  `C:\Users\benas\OneDrive\Documents\Ableton\User Library`) ; le 8 octobre
+  sa base de plugins était vide (dossier VST3 `D:\VST3` pas encore déclaré).
+  Validateur officiel Steinberg : SDK VST3 3.8.1 cloné et compilé dans
+  `D:\tools\vst3sdk` (`build\bin\Release\validator.exe <bundle>`).
+- **Contre-épreuve REAPER faite par le propriétaire le 7 octobre** (PC
+  portable, micro intégré, WASAPI) : do, bend et enregistrement MIDI OK.
+- **Nuit du 7 au 8 octobre (session autonome ; Live non pilotable, l'accès
+  au bureau demande un clic)** : hôte VST3 de test en ligne de commande
+  `plugin/tools/vst3_probe.cpp` (cible `jamrack_vst3_probe` ; options bypass
+  et `--reprepare-at`) + `plugin/m0/check_probe.py` (**62/62**, détail dans
+  le README) ; deux revues adversariales (63 puis 6 agents). Corrigé :
+  détecteur M0 devenu un détecteur de **montée** (énergie 5 ms > −45 dBFS et
+  > 2 × énergie 30 ms, réarmement sous 1,25 ×, enveloppes conservées au
+  reset/bypass, garde NaN) ; l'ancien (−30 dBFS, réarmement sous −40)
+  bloquait une corde qui sonne (1 note sur 10) et devenait muet sous −24 dBFS
+  de crête. GuitarSet (`plugin/m0/sim_detector.py`) : 72/73/71/61 %
+  d'attaques attrapées à −6/−12/−18/−24 dBFS contre 39/37/13/0 %. Programme
+  par défaut nommé (validateur Steinberg 47/47). Check-list : étape
+  « niveau » et diagnostic par le compteur « notes sent ».
+- **CI jamais exécutée** : Actions activé sur le dépôt, YAML valide, mais
+  GitHub ne crée aucune exécution (pas de suite Actions sur la PR #6, et les
+  suites `github-pages` restent « queued ») : blocage probable côté compte,
+  à regarder par le propriétaire sur github.com/benasterisk/jamrack/actions.
 - **Suite** : soirée M0 du propriétaire (check-list du README), compte rendu,
   puis M1 (port MONO + oracle). Le code `plugin/m0/` est jeté en M2 (garder
   le CMake et la CI) ; supprimer les deux `.vst3` M0 de `D:\VST3` avant
