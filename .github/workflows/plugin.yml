@@ -1,0 +1,51 @@
+# VST3 plugin (docs/plugin-plan.md): Windows build + pluginval, artefact zip.
+name: plugin
+
+on:
+  push:
+    branches: [ feature/plugin, main ]
+    paths: [ 'plugin/**', '.github/workflows/plugin.yml' ]
+    tags: [ 'plugin-v*' ]
+  pull_request:
+    paths: [ 'plugin/**', '.github/workflows/plugin.yml' ]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: plugin/build/_deps
+          key: juce-8.0.15-${{ runner.os }}
+
+      - name: Configure
+        run: cmake -S plugin -B plugin/build -G "Visual Studio 17 2022" -A x64 -DJAMRACK_COPY_AFTER_BUILD=OFF
+
+      - name: Build (Release)
+        run: cmake --build plugin/build --config Release --parallel
+
+      - name: pluginval
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          $bundles = Get-ChildItem plugin/build -Recurse -Directory -Filter *.vst3 | Where-Object { $_.FullName -match '_artefacts\\Release\\VST3\\[^\\]+\.vst3$' }
+          if (-not $bundles) { throw 'no .vst3 bundle found' }
+          foreach ($b in $bundles) {
+            Write-Host "== $($b.FullName)"
+            ./pluginval/pluginval.exe --strictness-level 5 --timeout-ms 60000 --skip-gui-tests --output-dir plugin/build/pluginval --validate "$($b.FullName)"
+            if ($LASTEXITCODE -ne 0) { throw "pluginval failed on $($b.Name)" }
+          }
+
+      - name: Upload VST3 bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: jamrack-vst3-win64
+          path: |
+            plugin/build/**/_artefacts/Release/VST3/*.vst3
+            plugin/build/pluginval
+            plugin/README.md
