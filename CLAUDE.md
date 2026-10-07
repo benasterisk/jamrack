@@ -94,9 +94,9 @@ aux changements de session. Détails : `docs/local-setup.md`.
   instrument dont la seule entrée est un bus *side-chain* auxiliaire,
   `getPluginHasMainInput() = false`). `plugin/CMakeLists.txt` : JUCE 8.0.15
   par FetchContent (jamais copié), runtime MSVC statique, `/fp:precise`,
-  version + hash git court (rafraîchi à chaque commit) dans l'éditeur, copie
+  version + hash git court (calculé à chaque build par `plugin/cmake/git_hash.cmake`, « + » = modifications non commitées) dans l'éditeur, copie
   dans `D:\VST3` (`JAMRACK_COPY_AFTER_BUILD`). pluginval 1.0.4 niveau 5 :
-  SUCCESS sur les deux. CI `.github/workflows/plugin.yml` (Windows : build +
+  SUCCESS sur les deux. Revue adversariale (5 angles, 3 sceptiques par constat) : 13 constats confirmés, tous corrigés. CI `.github/workflows/plugin.yml` (Windows : build +
   pluginval + artefact). `plugin/README.md` : check-list de la soirée M0,
   modèle de compte rendu, retour arrière, avis de licence.
 - **Outillage local (installé le 7 octobre)** : CMake 4.4.4 (winget, portée
