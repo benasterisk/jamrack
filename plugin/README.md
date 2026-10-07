@@ -183,7 +183,7 @@ charge un `.vst3` **installé**, lui envoie un fichier WAV bloc par bloc comme u
 fabrique les WAV de test et vérifie les deux prototypes :
 
 ```powershell
-python plugin/m0/check_probe.py --probe D:\JamRack\pluginuild\jamrack_vst3_probe_artefacts\Release\jamrack_vst3_probe.exe --outdir $env:TEMP\m0-probe
+python plugin/m0/check_probe.py --probe D:\JamRack\plugin\build\jamrack_vst3_probe_artefacts\Release\jamrack_vst3_probe.exe --outdir $env:TEMP\m0-probe
 ```
 
 **Résultat du 8 octobre 2026** (builds installés dans `D:\VST3`) : **40 essais sur 40
