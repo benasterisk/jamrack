@@ -64,7 +64,7 @@ endif()
 # files, not JUCE.
 set(JAMRACK_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 add_custom_target(jamrack_git_hash ALL
-  COMMAND "${CMAKE_COMMAND}" -DSRC="${CMAKE_CURRENT_SOURCE_DIR}" -DOUT="${JAMRACK_GEN_DIR}/jamrack_git_hash.h"
+  COMMAND "${CMAKE_COMMAND}" "-DSRC=${CMAKE_CURRENT_SOURCE_DIR}" "-DOUT=${JAMRACK_GEN_DIR}/jamrack_git_hash.h"
           -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/git_hash.cmake"
   BYPRODUCTS "${JAMRACK_GEN_DIR}/jamrack_git_hash.h"
   COMMENT "JAMRACK: git hash of the build"
