@@ -55,7 +55,8 @@ public:
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram (int) override {}
-    const juce::String getProgramName (int) override { return {}; }
+    // a named default program: the Steinberg validator fails an unnamed one
+    const juce::String getProgramName (int) override { return "Default"; }
     void changeProgramName (int, const juce::String&) override {}
 
     void getStateInformation (juce::MemoryBlock& destData) override;
