@@ -211,7 +211,12 @@ def main():
         for sub, fn in (('annotation', t + '.jams'), ('audio_mono-pickup_mix', t + '_mix.wav')):
             dst = os.path.join(a.out, sub, fn)
             if not os.path.lexists(dst):
-                os.symlink(os.path.abspath(os.path.join(a.guitarset, sub, fn)), dst)
+                src = os.path.abspath(os.path.join(a.guitarset, sub, fn))
+                try:
+                    os.symlink(src, dst)
+                except OSError:          # Windows without the symlink privilege: copy instead
+                    import shutil
+                    shutil.copy2(src, dst)
     recipe = {}
     for name, r in split['recipe'].items():
         if r['kind'] == 'mix':

@@ -8,14 +8,20 @@
 import { debounce } from '../util.js';
 
 export class Engine {
-  constructor() {
+  constructor(opts = {}) {
     const AC = window.AudioContext || window.webkitAudioContext;
     // 'interactive' is the platform's usual low-latency buffer; a numeric 0
     // asks for the smallest one the device supports (Chrome clamps it to what
     // it considers safe), which matters for the GUITAR → MIDI section. Phones
     // keep the default: their minimum glitches under a loaded rack.
     const desktop = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    this.ctx = new AC({ latencyHint: desktop ? 0 : 'interactive' });
+    // Buffer size: 'min' asks for the smallest buffer (lowest latency; a loaded
+    // machine or a demanding audio driver may crackle), 'balanced' 20 ms,
+    // 'safe' 30 ms. Measured in Chrome on Windows: hint 0 and 'interactive'
+    // both give 10 ms (the WASAPI floor), 0.02 -> 20 ms, 0.03 -> 30 ms.
+    const buffer = (opts && opts.buffer) || 'min';
+    const latencyHint = buffer === 'safe' ? 0.03 : buffer === 'balanced' ? 0.02 : (desktop ? 0 : 'interactive');
+    this.ctx = new AC({ latencyHint });
 
     this.master = this.ctx.createGain();
     // Instruments sum here (dry, before the shared effects) so the LOOPER can

@@ -22,12 +22,14 @@ import { createLooper } from './audio/looper/index.js';
 import { createRack } from './ui/rack.js';
 import { createPiano } from './ui/piano.js';
 import { setupDialogs } from './ui/dialogs.js';
+import { setupCalibration } from './ui/calibration.js';
+import { getProfile, listProfiles } from './audio/guitar/poly/profiles.js';
 import {
   t, setLang, getLang, instrumentName, noteName, LANGUAGES,
 } from './i18n/index.js';
 import { clamp, formatTime, debounce, esc } from './util.js';
 
-const engine = new Engine();
+const engine = new Engine({ buffer: state.audio.buffer });
 const metronome = new Metronome(engine);
 const recorder = new Recorder(engine);
 const audios = new Map(); // instance.id -> Instrument
@@ -397,6 +399,9 @@ const rack = createRack(document.getElementById('rack'), {
   },
   guitarRunning: () => guitar.running,
   guitarDevices: () => guitar.devices,
+  guitarProfiles: () => guitarProfiles,
+  guitarProfile(id) { selectGuitarProfile(id ? guitarProfiles.find(p => p.id === id) || null : null); },
+  guitarCalibrate() { calibration.show(); },
   guitarStatusText: () => guitarStatusText(guitar.status),
   // --- LOOPER section (the looper object is created further below)
   async looperToggle(i) { if (await looperGesture()) looper.toggle(i); },
@@ -444,6 +449,7 @@ const guitar = createGuitarInput(engine.ctx, {
   bend: routeBend,
   meter: info => rack.setGuitarMeter(info, guitar.latency()),
   status: st => rack.setGuitarStatus(guitarStatusText(st), st.key === 'noMic' || st.key === 'denied'),
+  mode: () => rack.setGuitarStatus(guitarStatusText(guitar.status), false),   // the LCD names the engine
   devices: (list, id) => rack.setGuitarDevices(list, id),
   running: on => {
     rack.setGuitarRunning(on);
@@ -456,14 +462,38 @@ function applyGuitarParams() {
   const g = state.guitar;
   guitar.setGain(g.gain);
   guitar.setParams({ sens: g.sens, release: g.release, dyn: g.dyn, bend: g.bend, octave: g.octave });
+  guitar.setMode(g.mode);
 }
 applyGuitarParams();
+
+// POLY bank profiles (calibration assistant). The saved choice is applied
+// once the profile is read back from IndexedDB.
+let guitarProfiles = [];
+function selectGuitarProfile(profile) {
+  state.guitar.profileId = profile ? profile.id : null;
+  guitar.setProfile(profile);
+  rack.setGuitarProfiles(guitarProfiles, state.guitar.profileId);
+  emit('guitar');
+}
+const calibration = setupCalibration({
+  guitar,
+  ctxRate: () => engine.ctx.sampleRate,
+  onProfilesChanged(list) { guitarProfiles = list; rack.setGuitarProfiles(list, state.guitar.profileId); },
+  selectProfile: selectGuitarProfile,
+});
+listProfiles().then(async list => {
+  guitarProfiles = list;
+  const saved = state.guitar.profileId ? await getProfile(state.guitar.profileId) : null;
+  if (saved) guitar.setProfile(saved); else state.guitar.profileId = null;
+  rack.setGuitarProfiles(list, state.guitar.profileId);
+});
 
 function guitarStatusText(st) {
   const key = { off: 'gtrOff', starting: 'gtrStarting', listening: 'gtrListening', compat: 'gtrCompat',
     noMic: 'gtrNoMic', denied: 'gtrDenied', ended: 'gtrEnded' }[st.key] || 'gtrOff';
   const detail = st.detail ? ` — ${st.detail}` : '';
-  return t(key) + detail;
+  const mode = (st.key === 'listening' || st.key === 'compat') && state.guitar.mode === 'poly' ? ' · POLY β' : '';
+  return t(key) + mode + detail;
 }
 
 // ---------------------------------------------------------------- looper

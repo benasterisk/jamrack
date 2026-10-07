@@ -163,6 +163,10 @@ export function createRack(container, api) {
       <div class="mod-head">
         <button class="mod-power gtr-power" title="${esc(t('gtrTitlePower'))}"><span class="led"></span></button>
         <span class="master-title gtr-title">${esc(t('gtrTitle'))}</span>
+        <div class="layout-switch gtr-mode" title="${esc(t('gtrTitleMode'))}">
+          <button data-m="mono" class="${g.mode !== 'poly' ? 'on' : ''}">MONO</button>
+          <button data-m="poly" class="${g.mode === 'poly' ? 'on' : ''}">POLY<small>β</small></button>
+        </div>
         <div class="mod-lcd gtr-lcd">—</div>
         <div class="mod-selects">
           <select class="sel-bank sel-input" title="${esc(t('gtrTitleDevice'))}"></select>
@@ -202,26 +206,58 @@ export function createRack(container, api) {
     gtr.sel.addEventListener('change', () => api.guitarDevice(gtr.sel.value));
 
     const changed = () => api.guitarChanged();
+    root.classList.toggle('poly', g.mode === 'poly');
+    root.querySelectorAll('.gtr-mode button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        g.mode = btn.dataset.m;
+        root.querySelectorAll('.gtr-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === g.mode));
+        root.classList.toggle('poly', g.mode === 'poly');
+        changed();
+      });
+    });
+    // MONO-only controls are dimmed in POLY (the engine ignores them)
+    const monoOnly = node => { node.classList.add('gtr-mono-only'); return node; };
+    const bufSel = el(`<div class="stepper"><select class="sel-bank sel-buffer" title="${esc(t('audioBufferTitle'))}">${
+      ['min', 'balanced', 'safe'].map(v => `<option value="${v}" ${state.audio.buffer === v ? 'selected' : ''}>${esc(t('audioBuffer' + v[0].toUpperCase() + v.slice(1)))}</option>`).join('')
+    }</select><span class="stepper-lab">${esc(t('audioBuffer'))}</span></div>`);
+    bufSel.querySelector('select').addEventListener('change', e => {
+      state.audio.buffer = e.target.value;
+      emit('audio');
+      // the AudioContext buffer is fixed at creation: a reload applies it
+      setTimeout(() => { if (confirm(t('audioBufferReload'))) location.reload(); }, 450);
+    });
     body.appendChild(section(t('gtrInput'), row(
       createKnob({ label: t('gtrGain'), value: g.gain, min: 0.1, max: 10, def: 1, curve: 'log',
         format: v => `${v >= 1 ? '+' : ''}${Math.round(20 * Math.log10(v))}dB`,
         onInput: v => { g.gain = v; changed(); } }).el,
-      createKnob({ label: t('gtrSens'), value: g.sens, def: 0.5, format: fmtPct,
-        onInput: v => { g.sens = v; changed(); } }).el,
+      monoOnly(createKnob({ label: t('gtrSens'), value: g.sens, def: 0.5, format: fmtPct,
+        onInput: v => { g.sens = v; changed(); } }).el),
+      bufSel,
     )));
 
     const notesRow = row(
-      createKnob({ label: t('gtrRelease'), value: g.release, def: 0.5, format: fmtPct,
-        onInput: v => { g.release = v; changed(); } }).el,
-      createKnob({ label: t('gtrDyn'), value: g.dyn, def: 0.7, format: fmtPct,
-        onInput: v => { g.dyn = v; changed(); } }).el,
+      monoOnly(createKnob({ label: t('gtrRelease'), value: g.release, def: 0.5, format: fmtPct,
+        onInput: v => { g.release = v; changed(); } }).el),
+      monoOnly(createKnob({ label: t('gtrDyn'), value: g.dyn, def: 0.7, format: fmtPct,
+        onInput: v => { g.dyn = v; changed(); } }).el),
     );
-    const bendTog = el(`<label class="toggle" title="${esc(t('gtrTitleBend'))}">
-      <input type="checkbox" ${g.bend ? 'checked' : ''}><span class="sw"></span>${esc(t('gtrBend'))}</label>`);
+    const bendTog = monoOnly(el(`<label class="toggle" title="${esc(t('gtrTitleBend'))}">
+      <input type="checkbox" ${g.bend ? 'checked' : ''}><span class="sw"></span>${esc(t('gtrBend'))}</label>`));
     bendTog.querySelector('input').addEventListener('change', e => { g.bend = e.target.checked; changed(); });
     notesRow.appendChild(bendTog);
     notesRow.appendChild(stepper(t('octave'), g.octave, -2, 2, v => { g.octave = v; changed(); }));
     body.appendChild(section(t('gtrNotes'), notesRow));
+
+    // POLY bank profile: generic or a calibration of this guitar
+    const profRow = el(`<div class="mod-sec-row gtr-poly-only">
+      <select class="sel-bank sel-profile" title="${esc(t('gtrTitleProfile'))}"></select>
+      <button class="tb-btn btn-calibrate" title="${esc(t('gtrTitleCalibrate'))}">${esc(t('gtrCalibrate'))}</button>
+    </div>`);
+    gtr.profSel = profRow.querySelector('.sel-profile');
+    gtr.profSel.addEventListener('change', () => api.guitarProfile(gtr.profSel.value || null));
+    profRow.querySelector('.btn-calibrate').addEventListener('click', () => api.guitarCalibrate());
+    body.appendChild(section(t('gtrProfile'), profRow));
+    setGuitarProfiles(api.guitarProfiles(), g.profileId);
 
     // current state (a language change rebuilds the card while it runs)
     setGuitarRunning(api.guitarRunning());
@@ -229,6 +265,14 @@ export function createRack(container, api) {
     setGuitarStatus(api.guitarStatusText());
     drawGuitarMeter(-200);
     return root;
+  }
+
+  /** Fills the POLY profile menu: generic + the saved calibrations. */
+  function setGuitarProfiles(list, currentId) {
+    if (!gtr || !gtr.profSel) return;
+    const known = (list || []).some(p => p.id === currentId);
+    gtr.profSel.innerHTML = `<option value="" ${!known ? 'selected' : ''}>${esc(t('gtrGeneric'))}</option>`
+      + (list || []).map(p => `<option value="${esc(p.id)}" ${p.id === currentId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
   }
 
   function setGuitarStatus(text, isErr = false) {
@@ -278,6 +322,21 @@ export function createRack(container, api) {
   function setGuitarMeter(info, lat) {
     if (!gtr) return;
     drawGuitarMeter(info.db);
+    const ms = v => (Number.isNaN(v) ? '?' : String(Math.round(v)));
+    if (info.hopMs !== undefined) {
+      // POLY: no single pitch to tune to — show the voice count and the cost
+      // of a hop against its 2.67 ms budget
+      const n = info.voices || 0;
+      gtr.noteEl.textContent = n ? `${n}♪` : '—';
+      gtr.noteEl.classList.toggle('playing', n > 0);
+      gtr.noteEl.classList.remove('heard');
+      gtr.centsEl.classList.remove('heard', 'intune');
+      gtr.centsEl.style.setProperty('--c', '0');
+      const cpu = Math.round(100 * info.hopMs / (1000 * 64 / 24000));
+      gtr.lat.innerHTML = `IN <b>${ms(lat.input)}</b> · OUT <b>${ms(lat.output)}</b> ms · ${esc(t('gtrCpu'))} <b>${cpu}</b> %`
+        + (info.eco ? ` · <b class="gtr-eco" title="${esc(t('gtrTitleEco'))}">${esc(t('gtrEco'))}</b>` : '');
+      return;
+    }
     const heard = !Number.isNaN(info.midiF);
     if (heard) {
       const nearest = Math.round(info.midiF);
@@ -292,7 +351,6 @@ export function createRack(container, api) {
     gtr.noteEl.classList.toggle('heard', heard);
     gtr.noteEl.classList.toggle('playing', info.note >= 0);
     gtr.centsEl.classList.toggle('heard', heard);
-    const ms = v => (Number.isNaN(v) ? '?' : String(Math.round(v)));
     gtr.lat.innerHTML = `IN <b>${ms(lat.input)}</b> · OUT <b>${ms(lat.output)}</b> · TRK <b>${ms(info.latMs)}</b> ms`;
   }
 
@@ -424,6 +482,7 @@ export function createRack(container, api) {
       <span class="lp-num">${i + 1}</span>
       <button class="tb-btn led-btn lp-rec" title="${esc(t('lpTitleTrack'))}"><span class="led"></span><span class="lp-mode">${esc(t('lpRec'))}</span></button>
       <div class="lp-sq">
+        <button class="sq-btn lp-pause ${p.paused ? 'active-amber' : ''}" title="${esc(t('lpTitlePause'))}">${p.paused ? '▶' : '⏸'}</button>
         <button class="sq-btn lp-mute ${p.mute ? 'active-amber' : ''}" title="${esc(t('lpTitleMute'))}">${esc(t('lpMute'))}</button>
         <button class="sq-btn lp-solo ${p.solo ? 'active-teal' : ''}" title="${esc(t('lpTitleSolo'))}">${esc(t('lpSolo'))}</button>
         <button class="sq-btn lp-tundo" title="${esc(t('lpTitleUndo'))}" disabled>↶</button>
@@ -453,6 +512,12 @@ export function createRack(container, api) {
     strip.querySelector('.lp-rec').addEventListener('click', () => {
       lpLast.toggled = i;        // the header UNDO follows the last track touched
       api.looperToggle(i);
+    });
+    const pauseBtn = strip.querySelector('.lp-pause');
+    pauseBtn.addEventListener('click', () => {
+      set({ paused: !p.paused });
+      pauseBtn.classList.toggle('active-amber', p.paused);
+      pauseBtn.textContent = p.paused ? '▶' : '⏸';
     });
     tr.mute.addEventListener('click', () => {
       set({ mute: !p.mute });
@@ -1332,7 +1397,7 @@ export function createRack(container, api) {
 
   return {
     rebuild, setStatus, refreshSoloMute,
-    setGuitarStatus, setGuitarRunning, setGuitarDevices, setGuitarMeter,
+    setGuitarStatus, setGuitarRunning, setGuitarDevices, setGuitarMeter, setGuitarProfiles,
     setLooperMeter, setLooperEvents, setLooperStatus, refreshLooperSources,
     refreshSampler(id) {
       const c = cards.get(id);
