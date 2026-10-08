@@ -60,7 +60,8 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return JucePlugin_Name; }
-    bool acceptsMidi() const override { return false; }
+    // Inst: an event input bus, required by Live for instruments (incoming MIDI is discarded)
+    bool acceptsMidi() const override { return JAMRACK_IS_INST != 0; }
     bool producesMidi() const override { return true; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }

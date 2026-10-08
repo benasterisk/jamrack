@@ -197,6 +197,9 @@ def audio_checks(kind, d):
         p.append(f'layout {d["layoutAccepted"]} {d["inputChannels"]}/{d["outputChannels"]}')
     if d['isInstrument'] != (kind == 'Inst') or not d['producesMidi'] or not d['hasBypassParameter']:
         p.append('instrument/MIDI/bypass flags not as expected')
+    # Live 12 refuses an instrument without an event input bus ("no valid event input bus")
+    if kind == 'Inst' and not d.get('acceptsMidi'):
+        p.append('instrument without a MIDI input bus (Live refuses to open it)')
     return p
 
 

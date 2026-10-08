@@ -94,7 +94,9 @@ function(jamrack_add_m0_prototype target product code is_synth categories)
     VERSION ${PROJECT_VERSION}
     FORMATS VST3
     IS_SYNTH ${is_synth}
-    NEEDS_MIDI_INPUT FALSE
+    # Live refuses a VST3 instrument without an event input bus ("plugin has
+    # instrument category, but no valid event input bus"): the Inst gets one
+    NEEDS_MIDI_INPUT ${is_synth}
     NEEDS_MIDI_OUTPUT TRUE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE

@@ -193,6 +193,7 @@ int main (int argc, char** argv)
          << " \"inputChannels\": " << nIn << ",\n \"outputChannels\": " << nOut << ",\n"
          << " \"latencySamples\": " << plugin->getLatencySamples() << ",\n"
          << " \"producesMidi\": " << (plugin->producesMidi() ? "true" : "false") << ",\n"
+         << " \"acceptsMidi\": " << (plugin->acceptsMidi() ? "true" : "false") << ",\n"
          << " \"hasBypassParameter\": " << (bypass != nullptr ? "true" : "false") << ",\n"
          << " \"passThroughMaxDiff\": " << num (passMaxDiff) << ",\n"
          << " \"outputMaxAbs\": " << num (outMaxAbs) << ",\n"
