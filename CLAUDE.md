@@ -114,6 +114,10 @@ aux changements de session. Détails : `docs/local-setup.md`.
   `D:\tools\vst3sdk` (`build\bin\Release\validator.exe <bundle>`).
 - **Contre-épreuve REAPER faite par le propriétaire le 7 octobre** (PC
   portable, micro intégré, WASAPI) : do, bend et enregistrement MIDI OK.
+- **Live 12.4.6 Trial, 8 octobre : test 1 réussi** (propriétaire) : l'**effet**
+  JAMRACK GTM Fx est accepté dans *MIDI From* et le synthé joue → M2 garde la
+  forme « effet audio avec sortie MIDI ». Restent à rapporter : bend, test 2
+  (Inst), armement, latence (check-list du README).
 - **Nuit du 7 au 8 octobre (session autonome ; Live non pilotable, l'accès
   au bureau demande un clic)** : hôte VST3 de test en ligne de commande
   `plugin/tools/vst3_probe.cpp` (cible `jamrack_vst3_probe` ; options bypass

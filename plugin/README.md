@@ -178,6 +178,14 @@ n'apparaît pas, Log.txt du dossier Preferences de Live si Live plante)
 
 *À compléter après la soirée Live + Gigcaster (date, Live, tampon, fréquence, pilote, build).*
 
+**8 octobre 2026 — Live 12.4.6 Trial, test 1 (effet) : réussi** selon le propriétaire.
+**JAMRACK GTM Fx** posé sur la piste guitare est accepté comme source dans *MIDI From*
+d'une piste MIDI, et le synthé joue les notes. Build `a12f43d` : c'est celui qui était
+installé dans `D:\VST3` quand Live a chargé le plugin, puisque la copie précédente avait
+réussi. Conséquence : la forme **effet audio avec sortie MIDI** marche dans Live, et le
+vrai plugin (M2) peut la garder. À préciser : bend d'un demi-ton entendu, interface et
+tampon utilisés, test 2 (Inst), armement, latence.
+
 **Essai partiel, 7 octobre 2026 — REAPER seul, sans Live ni Gigcaster.** PC portable,
 micro et enceintes intégrés, REAPER en WASAPI, 48 kHz, tampon 256 ; build
 `JAMRACK GTM Fx 0.0.1 (aafa807)` ; chaîne FX : JAMRACK GTM Fx → ReaSynth.
