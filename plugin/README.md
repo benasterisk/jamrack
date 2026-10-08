@@ -71,8 +71,8 @@ navigateur de Live → **User Library → Samples → JAMRACK → `m0-plucks-48k
    de la check-list (*MIDI From* = Guitare → JAMRACK GTM Fx, *Monitor* In, instrument en
    plage de bend 2).
 3. Lance le clip : le synthé doit jouer 10 do, chacun avec le glissement d'un demi-ton.
-4. Même chose avec **JAMRACK GTM Inst** sur une piste MIDI, *Audio From* (side-chain) =
-   Guitare.
+4. Même chose avec **JAMRACK GTM Inst** sur une piste MIDI : section **Sidechain** de
+   l'appareil allumée, *Audio From* = Guitare, Mix 100 % (voir l'étape 3 de la check-list).
 
 Ce test répond aux questions 2 et 3 de la check-list (routage, bend, side-chain) ; la
 latence et le jeu réel demandent toujours la guitare.
@@ -118,8 +118,11 @@ réglé sur **plage de bend 2** (Wavetable / Operator : *Pitch Bend Range* = 2).
   (oui/non ; s'il monte de **trois tons** (un triton), l'instrument est resté en plage 12)
 
 **3. Live — l'instrument (b).** Piste MIDI « Inst » : y poser **JAMRACK GTM Inst**. Dans
-la barre de titre du plugin (en haut du panneau du périphérique), Live doit afficher un
-sélecteur ***Audio From*** (side-chain) : le régler sur la piste **Guitare**. Puis une
+l'appareil (en bas), ouvrir la section **Sidechain** (petit bouton triangle à gauche de
+l'appareil ou dans sa barre de titre), **allumer « Sidechain »**, régler ***Audio From***
+= piste **Guitare** (Post FX), **Mix 100 %**, Gain 0 dB ; la piste Guitare reste en
+*Monitor* **In**. (Si l'Inst affiche « could not be opened » : Ctrl+, → Plug-Ins →
+**Alt + Rescan**, puis le reposer ; relever sinon les lignes « VST3 » du Log.txt.) Puis une
 deuxième piste MIDI « Synthé 2 » avec le même instrument (plage de bend 2) : *MIDI From*
 = piste « Inst », puis dans le menu du dessous **JAMRACK GTM Inst** ; *Monitor* = **In**.
 - [ ] Sélecteur *Audio From* présent sur l'Inst ? (oui/non)
@@ -185,6 +188,12 @@ installé dans `D:\VST3` quand Live a chargé le plugin, puisque la copie préc�
 réussi. Conséquence : la forme **effet audio avec sortie MIDI** marche dans Live, et le
 vrai plugin (M2) peut la garder. À préciser : bend d'un demi-ton entendu, interface et
 tampon utilisés, test 2 (Inst), armement, latence.
+
+**Même soirée — bend entendu : oui** (micro et casque du PC). **Test 2 (Inst) : refusé par
+Live** (« This VST3 plug-in could not be opened ») ; Log.txt : *plugin has instrument
+category, but no valid event input bus* — Live exige une entrée MIDI sur tout instrument
+VST3, ce que ni pluginval ni le validateur Steinberg ne demandent. Corrigé (commit
+`d33d256`, entrée MIDI ajoutée à l'Inst seulement) ; à réessayer.
 
 **Essai partiel, 7 octobre 2026 — REAPER seul, sans Live ni Gigcaster.** PC portable,
 micro et enceintes intégrés, REAPER en WASAPI, 48 kHz, tampon 256 ; build

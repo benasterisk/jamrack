@@ -116,8 +116,12 @@ aux changements de session. Détails : `docs/local-setup.md`.
   portable, micro intégré, WASAPI) : do, bend et enregistrement MIDI OK.
 - **Live 12.4.6 Trial, 8 octobre : test 1 réussi** (propriétaire) : l'**effet**
   JAMRACK GTM Fx est accepté dans *MIDI From* et le synthé joue → M2 garde la
-  forme « effet audio avec sortie MIDI ». Restent à rapporter : bend, test 2
-  (Inst), armement, latence (check-list du README).
+  forme « effet audio avec sortie MIDI ». Bend entendu (micro et casque du
+  PC). Test 2 : Live a refusé l'Inst (« no valid event input bus » :
+  Live exige une entrée MIDI sur tout instrument VST3, pluginval et le
+  validateur Steinberg non) → `NEEDS_MIDI_INPUT` pour l'Inst (d33d256), à
+  réessayer (section Sidechain de l'appareil à allumer, Mix 100 %). Restent :
+  test 2, armement, latence.
 - **Nuit du 7 au 8 octobre (session autonome ; Live non pilotable, l'accès
   au bureau demande un clic)** : hôte VST3 de test en ligne de commande
   `plugin/tools/vst3_probe.cpp` (cible `jamrack_vst3_probe` ; options bypass
