@@ -70,9 +70,49 @@ add_custom_target(jamrack_git_hash ALL
   COMMENT "JAMRACK: git hash of the build"
   VERBATIM)
 
+# ---- MidPluck engines, JUCE-free (plan section 2): dsp/ holds the C++ ports of
+# js/audio/guitar/tracker.js (MONO) and js/audio/guitar/poly/*.js (POLY).
+# Sources are globbed so that each engine adds files without touching this one.
+file(GLOB_RECURSE MIDPLUCK_DSP_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/dsp/src/*.cpp")
+add_library(midpluck_dsp STATIC ${MIDPLUCK_DSP_SOURCES})
+target_include_directories(midpluck_dsp
+  PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/dsp/include"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/dsp/src")
+set_target_properties(midpluck_dsp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Closed-form tests: one executable per dsp/tests/test_*.cpp (asserts, exit 1 on failure).
+enable_testing()
+file(GLOB MIDPLUCK_DSP_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/dsp/tests/test_*.cpp")
+foreach(test_src ${MIDPLUCK_DSP_TESTS})
+  get_filename_component(test_name "${test_src}" NAME_WE)
+  add_executable(${test_name} "${test_src}")
+  target_link_libraries(${test_name} PRIVATE midpluck_dsp)
+  add_test(NAME ${test_name} COMMAND ${test_name})
+  set_tests_properties(${test_name} PROPERTIES ENVIRONMENT "ASAN_OPTIONS=halt_on_error=1")
+endforeach()
+
+# dump_events: WAV -> note-event JSON, same format as test/dump-events.mjs (plan 2, 4).
+file(GLOB MIDPLUCK_DUMP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/dump_*.cpp")
+add_executable(dump_events ${MIDPLUCK_DUMP_SOURCES})
+target_link_libraries(dump_events PRIVATE midpluck_dsp)
+set_target_properties(dump_events PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools"
+  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/tools/Release"
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/tools/Debug"
+  RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_BINARY_DIR}/tools/RelWithDebInfo")
+
+# Equivalence oracle on the synthetic corpus (plan 4.1): renders the recipes,
+# runs the JS engines and dump_events on the same WAVs, diffs note for note.
+find_program(NODE node)
+if(NODE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../test/render-plucks.mjs")
+  add_test(NAME oracle_synthetic
+    COMMAND "${NODE}" "${CMAKE_CURRENT_SOURCE_DIR}/../test/render-plucks.mjs"
+            --check --dump "$<TARGET_FILE:dump_events>" --out "${CMAKE_BINARY_DIR}/oracle")
+endif()
+
 if(JAMRACK_DSP_ONLY)
-  # The JUCE-free DSP library (dsp/) arrives in M1; nothing to build in M0.
-  message(STATUS "JAMRACK_DSP_ONLY: JUCE not fetched, no plugin target")
+  message(STATUS "JAMRACK_DSP_ONLY: JUCE not fetched, engines, tests and dump_events only")
   return()
 endif()
 
