@@ -126,8 +126,16 @@ aux changements de session. Détails : `docs/local-setup.md`.
   plugin pour l'instant (option possible après M2 : seulement des VST tiers,
   pas les instruments de Live). Dans Live, 2 pistes est le minimum (une piste
   audio ne contient pas d'instrument et Live ne passe pas le MIDI d'un plugin
-  à l'appareil suivant). Restent pour M0 : armement, latence. Le plugin aura
-  un **nom propre**, distinct de JAMRACK (recherche de noms en cours).
+  à l'appareil suivant). Restent pour M0 : armement, latence.
+- **Nom choisi le 8 octobre : MidPluck** (recherche web rapide : aucun
+  produit de ce nom ; pas de vérification de marque). Identité prévue :
+  `PRODUCT_NAME "MidPluck"`, `COMPANY_NAME "OpenMindLab"`, codes `Omlb` /
+  `Mdpk`, version 0.1.0, effet (Fx). Le propriétaire a demandé MONO **et**
+  POLY ensemble : port C++ des deux moteurs (`plugin/dsp/`, contrats
+  `events.h`, `jsmath.h`, `tools/dump_common.h`), oracle note pour note
+  (`test/render-plucks.mjs`, `test/diff-events.mjs`, dumps JS dans
+  `D:\poly-out`) et coque VST3 (`plugin/src/`) lancés en parallèle (workflow
+  `midpluck-mono-poly`).
 - **Nuit du 7 au 8 octobre (session autonome ; Live non pilotable, l'accès
   au bureau demande un clic)** : hôte VST3 de test en ligne de commande
   `plugin/tools/vst3_probe.cpp` (cible `jamrack_vst3_probe` ; options bypass
