@@ -120,8 +120,14 @@ aux changements de session. Détails : `docs/local-setup.md`.
   PC). Test 2 : Live a refusé l'Inst (« no valid event input bus » :
   Live exige une entrée MIDI sur tout instrument VST3, pluginval et le
   validateur Steinberg non) → `NEEDS_MIDI_INPUT` pour l'Inst (d33d256), à
-  réessayer (section Sidechain de l'appareil à allumer, Mix 100 %). Restent :
-  test 2, armement, latence.
+  réessayer (section Sidechain de l'appareil à allumer, Mix 100 %).
+- **Décision du propriétaire, 8 octobre : on reste sur l'EFFET (Fx).** Test 2
+  (Inst, 3 pistes, « usine à gaz ») abandonné ; pas d'hôte de synthé dans le
+  plugin pour l'instant (option possible après M2 : seulement des VST tiers,
+  pas les instruments de Live). Dans Live, 2 pistes est le minimum (une piste
+  audio ne contient pas d'instrument et Live ne passe pas le MIDI d'un plugin
+  à l'appareil suivant). Restent pour M0 : armement, latence. Le plugin aura
+  un **nom propre**, distinct de JAMRACK (recherche de noms en cours).
 - **Nuit du 7 au 8 octobre (session autonome ; Live non pilotable, l'accès
   au bureau demande un clic)** : hôte VST3 de test en ligne de commande
   `plugin/tools/vst3_probe.cpp` (cible `jamrack_vst3_probe` ; options bypass

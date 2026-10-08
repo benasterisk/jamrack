@@ -117,7 +117,7 @@ réglé sur **plage de bend 2** (Wavetable / Operator : *Pitch Bend Range* = 2).
 - [ ] **Bend entendu pendant la note** : le do monte d'**un demi-ton** puis redescend ?
   (oui/non ; s'il monte de **trois tons** (un triton), l'instrument est resté en plage 12)
 
-**3. Live — l'instrument (b).** Piste MIDI « Inst » : y poser **JAMRACK GTM Inst**. Dans
+**3. Live — l'instrument (b). Abandonné le 8 octobre (décision : on garde l'effet ; le test 1 a réussi).** Piste MIDI « Inst » : y poser **JAMRACK GTM Inst**. Dans
 l'appareil (en bas), ouvrir la section **Sidechain** (petit bouton triangle à gauche de
 l'appareil ou dans sa barre de titre), **allumer « Sidechain »**, régler ***Audio From***
 = piste **Guitare** (Post FX), **Mix 100 %**, Gain 0 dB ; la piste Guitare reste en
