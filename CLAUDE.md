@@ -173,6 +173,19 @@ aux changements de session. Détails : `docs/local-setup.md`.
   dans `D:\VST3-archive\m0`, plus construits (sources gardées). Écart voulu :
   le passage POLY → MONO remet MONO à zéro dans le plugin, pas dans
   `worklet.js` (décision du propriétaire à prendre).
+- **Interface au style JAMRACK (9 octobre, build `7ac59fb` installé ; l'ancien
+  `be2b6b7` est dans `D:\VST3-archive`)** : demandée par le propriétaire
+  (« design pas beau »). `plugin/src/ui/` (LookAndFeel, widgets, écran
+  TUNER/VOICES), façade 960 x 240 (4:1, 100-200 %) : vis de rack, LCD ambre
+  avec des états en mots simples, potards ambre lumineux, sélecteur
+  MONO | POLY β, BYPASS, voyant NOTE OUT, ↺ par section, réglages MONO seuls
+  grisés en POLY ; polices OFL embarquées (`plugin/resources/fonts/`, licences
+  copiées dans le bundle). Textes côté hôte : GAIN en dB, SENS/DECAY/DYN 0-100.
+  Molette désactivée sur MODE et MIDI CH (choix réversible). Outil
+  `tools/ui_snapshot.cpp` (cible `midpluck_ui_snapshot`) : 22 captures hors
+  écran et 107 vérifications. pluginval 5 avec tests d'interface SUCCESS,
+  Steinberg 47/47, MIDI identique à la version précédente. Fenêtre pas encore
+  ouverte dans un vrai DAW par la session.
 - **Suite** : soirée MidPluck du propriétaire (check-list de
   `plugin/README.md` : MONO, latence au téléphone 64/128/256 contre la page
   web, POLY et tag ECO, décalage d'enregistrement, armement), compte rendu,
