@@ -15,6 +15,15 @@
 //
 // Prints the decomposer and whole-hop cost per hop (mean and p99) per take:
 // the budget is one hop = 2.667 ms.
+//
+// ECO: the engine's automatic ECO switch (PolyTracker._loadControl) reacts to
+// the wall clock, so a dump made with it depends on the machine's load (the
+// dense decomposer costs 1.9-3.0 ms per hop in Node, above 80 % of the
+// budget: ECO engages after 375 hops and flaps). A dump is a pure function of
+// the WAV only without it, so it is OFF by default here (autoEco: false);
+// --eco on restores the live behaviour (cost studies only, never an oracle
+// reference). The shipped setting costs 0.5-0.6 ms per hop and never engaged
+// ECO on the 36 GuitarSet takes: its dumps are the same either way.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { readWav } from './dump-events.mjs';
@@ -29,10 +38,11 @@ if (process.env.DECOMP) Object.assign(DECOMPOSER, JSON.parse(process.env.DECOMP)
 const HOP_S = ANALYSIS_HOP / ANALYSIS_RATE;
 let bank = null;
 
-/** Note events of one WAV through the engine; `align` = 'scipy' | 'live'. */
-export function trackNotesPoly(wav, align = 'scipy') {
+/** Note events of one WAV through the engine; `align` = 'scipy' | 'live';
+ *  `o.eco` = true lets the timing-driven ECO switch run (see the header). */
+export function trackNotesPoly(wav, align = 'scipy', o = {}) {
   bank = bank || buildBank('medium');
-  const tr = new PolyTracker(ANALYSIS_RATE, { bank });    // fed at the analysis rate below
+  const tr = new PolyTracker(ANALYSIS_RATE, { bank, autoEco: o.eco === true });   // fed at the analysis rate below
   const rs = new Resampler(wav.rate, ANALYSIS_RATE);
   const lag = align === 'scipy' ? Math.round(rs.halfLen / rs.down) : 0;
   const open = new Map();
@@ -89,11 +99,13 @@ export function trackNotesPoly(wav, align = 'scipy') {
 
 function main() {
   const a = process.argv.slice(2);
-  const opt = { takes: new URL('./takes.json', import.meta.url).pathname, set: 'solo', label: 'poly-js', align: 'scipy' };
+  const opt = { takes: new URL('./takes.json', import.meta.url).pathname, set: 'solo', label: 'poly-js', align: 'scipy', eco: 'off' };
   const pos = [];
   for (let i = 0; i < a.length; i++) {
     if (a[i].startsWith('--')) opt[a[i].slice(2)] = a[++i]; else pos.push(a[i]);
   }
+  if (opt.eco !== 'on' && opt.eco !== 'off') throw new Error(`--eco must be on or off, not ${opt.eco}`);
+  const track = wav => trackNotesPoly(wav, opt.align, { eco: opt.eco === 'on' });
   const result = { label: opt.label, source: 'js/audio/guitar/poly/engine.js', align: opt.align, takes: {} };
   let outPath;
   const costs = [];
@@ -109,19 +121,19 @@ function main() {
     if (!list) throw new Error(`no "${opt.set}" list in ${takesPath}`);
     for (const take of list) {
       const wav = readWav(join(dir, 'audio_mono-pickup_mix', take + '_mix.wav'));
-      result.takes[take] = trackNotesPoly(wav, opt.align);
+      result.takes[take] = track(wav);
       report(take, result.takes[take]);
     }
     result.set = opt.set;
     outPath = opt.out || `events-${opt.label}-${opt.set}.json`;
   } else {
     if (pos.length < 1) {
-      console.error('usage: node test/poly-dump-events.mjs <file.wav> [out.json]\n       node test/poly-dump-events.mjs --guitarset <dir> --set solo|comp [--takes test/takes.json] [--align scipy|live] --out <out.json>');
+      console.error('usage: node test/poly-dump-events.mjs <file.wav> [out.json]\n       node test/poly-dump-events.mjs --guitarset <dir> --set solo|comp [--takes test/takes.json] [--align scipy|live] [--eco off|on] --out <out.json>');
       process.exit(1);
     }
     const wav = readWav(pos[0]);
     const take = basename(pos[0]).replace(/(_mix)?\.wav$/i, '');
-    result.takes[take] = trackNotesPoly(wav, opt.align);
+    result.takes[take] = track(wav);
     report(take, result.takes[take]);
     outPath = pos[1] || opt.out || basename(pos[0]).replace(/\.wav$/i, '') + '.poly.json';
   }

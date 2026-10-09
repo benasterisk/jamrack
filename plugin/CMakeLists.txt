@@ -1,12 +1,17 @@
-# JAMRACK Guitar -> MIDI, VST3 plugin (Windows). Plan: docs/plugin-plan.md.
+# MidPluck: guitar -> MIDI, VST3 audio effect (Windows), MIT. Plan: docs/plugin-plan.md.
 #
-# M0 (this file's current state): a throw-away prototype that measures what
-# Ableton Live 12 accepts. Two targets built from the same sources, each with
-# its own PLUGIN_CODE so that Live never confuses them (and never confuses
-# either with the real plugin, Gtm1, from M2 on):
-#   JAMRACK GTM Fx    PLUGIN_CODE Gtm0  audio effect (passes audio, emits MIDI)
-#   JAMRACK GTM Inst  PLUGIN_CODE Gtm9  instrument with one auxiliary
-#                                       "Sidechain" input (audio arrives by side-chain)
+# Targets:
+#   midpluck_dsp        static library, JUCE-free: the C++ ports of the browser
+#                       engines (dsp/: MONO = js/audio/guitar/tracker.js,
+#                       POLY = js/audio/guitar/poly/*.js)
+#   test_*              closed-form tests, one ctest each (dsp/tests)
+#   dump_events         WAV -> note-event JSON, the oracle against the JS (tools/dump_*.cpp)
+#   midpluck            the plugin (src/): "MidPluck", VST3 audio effect with MIDI
+#                       output, OpenMindLab / Omlb / Mdpk; bundle MidPluck.vst3
+#   jamrack_vst3_probe  command-line VST3 host that runs an installed plugin on a
+#                       WAV and records its MIDI (tools/vst3_probe.cpp)
+# The M0 prototypes (m0/, JAMRACK GTM Fx / Inst, codes Gtm0 / Gtm9) are no
+# longer built; their sources stay in m0/ for reference.
 #
 #   cmake -S plugin -B plugin/build -G "Visual Studio 17 2022" -A x64
 #   cmake --build plugin/build --config Release
@@ -19,7 +24,7 @@
 #   JAMRACK_ASAN              OFF MSVC /fsanitize=address (RelWithDebInfo, never Debug; rule 3.3-7)
 
 cmake_minimum_required(VERSION 3.22)
-project(jamrack-plugin VERSION 0.0.1 LANGUAGES C CXX)
+project(midpluck VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -123,51 +128,47 @@ FetchContent_Declare(JUCE
   GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(JUCE)
 
-# One prototype target. IS_INST selects the instrument variant (auxiliary
-# side-chain input, no main input) at compile time.
-function(jamrack_add_m0_prototype target product code is_synth categories)
-  juce_add_plugin(${target}
-    PRODUCT_NAME "${product}"
-    COMPANY_NAME "JAMRACK"
-    PLUGIN_MANUFACTURER_CODE Jamr
-    PLUGIN_CODE ${code}
-    VERSION ${PROJECT_VERSION}
-    FORMATS VST3
-    IS_SYNTH ${is_synth}
-    # Live refuses a VST3 instrument without an event input bus ("plugin has
-    # instrument category, but no valid event input bus"): the Inst gets one
-    NEEDS_MIDI_INPUT ${is_synth}
-    NEEDS_MIDI_OUTPUT TRUE
-    IS_MIDI_EFFECT FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    VST3_CATEGORIES ${categories}
-    COPY_PLUGIN_AFTER_BUILD ${JAMRACK_COPY_AFTER_BUILD}
-    VST3_COPY_DIR "${JAMRACK_VST3_DIR}")
+# The plugin (plan sections 2 and 3). An audio effect, not an instrument: it
+# needs the audio input of the guitar track (owner decision, 8 October; the M0
+# instrument variant was dropped). PLUGIN_CODE Mdpk is MidPluck's own: JUCE
+# derives the VST3 class id from manufacturer + plugin codes, so it never
+# collides with the M0 prototypes (Jamr Gtm0 / Gtm9) a host may still list.
+juce_add_plugin(midpluck
+  PRODUCT_NAME "MidPluck"
+  COMPANY_NAME "OpenMindLab"
+  PLUGIN_MANUFACTURER_CODE Omlb
+  PLUGIN_CODE Mdpk
+  VERSION ${PROJECT_VERSION}
+  FORMATS VST3
+  IS_SYNTH FALSE
+  NEEDS_MIDI_INPUT FALSE
+  NEEDS_MIDI_OUTPUT TRUE
+  IS_MIDI_EFFECT FALSE
+  EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+  VST3_CATEGORIES "Fx" "Tools"
+  COPY_PLUGIN_AFTER_BUILD ${JAMRACK_COPY_AFTER_BUILD}
+  VST3_COPY_DIR "${JAMRACK_VST3_DIR}")
 
-  target_sources(${target} PRIVATE
-    m0/PluginProcessor.cpp
-    m0/PluginEditor.cpp)
+target_sources(midpluck PRIVATE
+  src/PluginProcessor.cpp
+  src/PluginEditor.cpp)
 
-  target_compile_definitions(${target} PUBLIC
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0
-    JAMRACK_IS_INST=$<IF:$<BOOL:${is_synth}>,1,0>)
+target_compile_definitions(midpluck PUBLIC
+  JUCE_WEB_BROWSER=0
+  JUCE_USE_CURL=0
+  JUCE_VST3_CAN_REPLACE_VST2=0
+  JUCE_DISPLAY_SPLASH_SCREEN=0)
 
-  add_dependencies(${target} jamrack_git_hash)
-  target_include_directories(${target} PRIVATE "${JAMRACK_GEN_DIR}")
+add_dependencies(midpluck jamrack_git_hash)
+target_include_directories(midpluck PRIVATE "${JAMRACK_GEN_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-  target_link_libraries(${target} PRIVATE
-    juce::juce_audio_utils
-    PUBLIC
-    juce::juce_recommended_config_flags
-    juce::juce_recommended_lto_flags
-    juce::juce_recommended_warning_flags)
-endfunction()
-
-jamrack_add_m0_prototype(jamrack_gtm_fx   "JAMRACK GTM Fx"   Gtm0 FALSE "Fx;Tools")
-jamrack_add_m0_prototype(jamrack_gtm_inst "JAMRACK GTM Inst" Gtm9 TRUE  "Instrument;Tools")
+target_link_libraries(midpluck PRIVATE
+  midpluck_dsp
+  juce::juce_audio_utils
+  PUBLIC
+  juce::juce_recommended_config_flags
+  juce::juce_recommended_lto_flags
+  juce::juce_recommended_warning_flags)
 
 # vst3_probe: a command-line VST3 host that loads an installed .vst3, feeds
 # it a WAV and records the MIDI it emits (plugin/tools/vst3_probe.cpp). Used
