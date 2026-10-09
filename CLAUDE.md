@@ -17,7 +17,7 @@ aux changements de session. Détails : `docs/local-setup.md`.
   seulement, pour l'instant). Moteur : `js/audio/engine.js` (bus `dry` →
   master ; `latencyHint: 0` sur desktop).
 - Tests : `node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs
-  test/poly-engine.test.mjs test/poly-calibrate.test.mjs` (43 tests, ~30 s,
+  test/poly-engine.test.mjs test/poly-calibrate.test.mjs` (44 tests, ~30 s,
   Node 20+).
 - Le propriétaire (benasterisk) ne code pas lui-même : il dirige, teste à la
   guitare et décide du périmètre. Répondre **en français**, sans jargon
@@ -153,10 +153,31 @@ aux changements de session. Détails : `docs/local-setup.md`.
   GitHub ne crée aucune exécution (pas de suite Actions sur la PR #6, et les
   suites `github-pages` restent « queued ») : blocage probable côté compte,
   à regarder par le propriétaire sur github.com/benasterisk/jamrack/actions.
-- **Suite** : soirée M0 du propriétaire (check-list du README), compte rendu,
-  puis M1 (port MONO + oracle). Le code `plugin/m0/` est jeté en M2 (garder
-  le CMake et la CI) ; supprimer les deux `.vst3` M0 de `D:\VST3` avant
-  d'installer M2.
+- **MidPluck 0.1.0 fait (nuit du 8 au 9 octobre, jalons M1 + M2 + M3 réunis,
+  build `be2b6b7` installé dans `D:\VST3\MidPluck.vst3`)** : moteurs C++ dans
+  `plugin/dsp/` (MONO `mono_tracker`, POLY `poly/*` avec `PolyEngineState`),
+  **identiques au JS au bit près** (fonctions de V8 reprises dans
+  `poly/v8math.h` : sin, cos, log, log10, hypot, plus log2 dans
+  `mono_tracker.cpp`) : MONO GuitarSet 3 361 / 3 361 notes, POLY livré
+  4 141 / 4 141, dense 4 174 / 4 174, corpus synthétique 673 / 673, écart
+  `score.py` 0,0 point. Outils : `tools/dump_events` (même JSON que les dumps
+  JS), `test/render-plucks.mjs` (112 signaux, ctest `oracle_synthetic`),
+  `test/diff-events.mjs`, `tools/gen-profile-header.mjs --check`. Coque
+  `plugin/src/` : réglages du plan 3.1 avec MODE (MONO / POLY bêta) et BYPASS,
+  OCTAVE/TRANSPOSE/MIDI CH à crans (`SteppedInt`), flushs du plan 3.2, état
+  POLY construit sur un fil de fond, entrée NaN/Inf remplacée par 0 avant les
+  moteurs. pluginval 5 SUCCESS, Steinberg 47/47, rappel d'état OK, sortie du
+  plugin = sortie des moteurs (vst3_probe étendu : `--param`, `--param-at`,
+  `--state-test`, `--warmup-ms`). Coût : MONO 1,6 % d'un cœur, POLY 0,22 ms
+  par pas (budget 2,67 ms) : ECO éteint à 44,1/48 kHz. Prototypes M0 rangés
+  dans `D:\VST3-archive\m0`, plus construits (sources gardées). Écart voulu :
+  le passage POLY → MONO remet MONO à zéro dans le plugin, pas dans
+  `worklet.js` (décision du propriétaire à prendre).
+- **Suite** : soirée MidPluck du propriétaire (check-list de
+  `plugin/README.md` : MONO, latence au téléphone 64/128/256 contre la page
+  web, POLY et tag ECO, décalage d'enregistrement, armement), compte rendu,
+  puis PR vers `main` et Release GitHub `plugin-v0.1.0` (la CI n'a encore
+  jamais tourné côté GitHub).
 
 ## POLY (polyphonie) — état exact
 
