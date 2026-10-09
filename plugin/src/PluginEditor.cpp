@@ -86,6 +86,8 @@ juce::String MidPluckEditor::statusText (const MidPluckProcessor::Meters& m)
     }
     if (const int dropped = m.droppedEvents.load (relaxed); dropped > 0)
         line << "  dropped " << dropped;
+    if (const int bad = m.badSamples.load (relaxed); bad > 0)
+        line << "  bad input samples " << bad;
     return line;
 }
 

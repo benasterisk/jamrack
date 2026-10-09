@@ -56,6 +56,19 @@ namespace midpluck::params
         return std::round (static_cast<double> (v) * 1e6) / 1e6;
     }
 
+    /**
+     * An integer parameter hosts see as stepped. JUCE's AudioParameterInt is not
+     * discrete for its VST3 wrapper (stepCount 0): Live would show OCTAVE,
+     * TRANSPOSE and MIDI CH as continuous controls and keep unsnapped values.
+     * Same ids and linear mapping, so states and automation stay valid.
+     */
+    class SteppedInt final : public juce::AudioParameterInt
+    {
+    public:
+        using juce::AudioParameterInt::AudioParameterInt;
+        bool isDiscrete() const override { return true; }
+    };
+
     inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     {
         using namespace juce;
@@ -77,8 +90,8 @@ namespace midpluck::params
         layout.add (std::make_unique<AudioParameterBool> (ParameterID { id::bend, 1 }, "BEND", true));
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { id::range, 1 }, "BEND RANGE", rangeChoices(), 0,
                                                             AudioParameterChoiceAttributes().withLabel ("st")));
-        layout.add (std::make_unique<AudioParameterInt> (ParameterID { id::octave, 1 }, "OCTAVE", -2, 2, 0));
-        layout.add (std::make_unique<AudioParameterInt> (ParameterID { id::transpose, 1 }, "TRANSPOSE", -12, 12, 0,
+        layout.add (std::make_unique<SteppedInt> (ParameterID { id::octave, 1 }, "OCTAVE", -2, 2, 0));
+        layout.add (std::make_unique<SteppedInt> (ParameterID { id::transpose, 1 }, "TRANSPOSE", -12, 12, 0,
                                                          AudioParameterIntAttributes().withLabel ("st")));
         // "poly", "POLY (beta)", "1" all select POLY; anything else MONO (host text entry, vst3_probe --param mode=poly)
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { id::mode, 1 }, "MODE", modeChoices(), modeMono,
@@ -88,7 +101,7 @@ namespace midpluck::params
                                                                     const auto t = text.trim().toLowerCase();
                                                                     return (t.startsWith ("poly") || t == "1") ? int (modePoly) : int (modeMono);
                                                                 })));
-        layout.add (std::make_unique<AudioParameterInt> (ParameterID { id::channel, 1 }, "MIDI CH", 1, 16, 1));
+        layout.add (std::make_unique<SteppedInt> (ParameterID { id::channel, 1 }, "MIDI CH", 1, 16, 1));
         layout.add (std::make_unique<AudioParameterBool> (ParameterID { id::bypass, 1 }, "BYPASS", false));
         return layout;
     }

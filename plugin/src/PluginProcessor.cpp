@@ -195,6 +195,13 @@ void MidPluckProcessor::PolyBuilder::run()
         catch (const std::bad_alloc&) { h = nullptr; }
         if (h == nullptr)
             continue;
+        if (owner.polyWantedRate.load (std::memory_order_acquire) != rate)
+        {
+            // the host changed rate while this was being built: never publish a stale state
+            delete h;
+            owner.polyBuildRequested.store (true, std::memory_order_release);
+            continue;
+        }
         if (threadShouldExit())
         {
             delete h;
@@ -247,10 +254,20 @@ void MidPluckProcessor::installPolyState (bool emit) noexcept
 
     if (h->rate != hostRate)
     {
-        // built for a rate the host left meanwhile: never used, rebuilt by the timer
+        // built for a rate the host left meanwhile: never used; rebuilt by the timer
+        // only if nothing usable runs (prepareToPlay adapts a running state itself)
         if (! retire (h))
             jassertfalse;   // retire queue full (31 states pending): leaked, never freed on this thread
-        polyRebuildNeeded.store (true, std::memory_order_release);
+        if (polyCurrent == nullptr || polyCurrent->rate != hostRate)
+            polyRebuildNeeded.store (true, std::memory_order_release);
+        return;
+    }
+    if (polyCurrent != nullptr && polyCurrent->rate == hostRate)
+    {
+        // the generic state already runs at this rate: a second identical one would
+        // only cut the sounding notes (no profiles in v1), keep the running one
+        if (! retire (h))
+            jassertfalse;
         return;
     }
 
@@ -495,12 +512,20 @@ void MidPluckProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         for (int pos = 0; pos < n; pos += maxChunk)
         {
             const int len = juce::jmin (maxChunk, n - pos);
-            const float* src = in + pos;
-            if (g != 1.0f)
+            // Every chunk goes through scratch: a NaN/Inf sample from an upstream
+            // device would otherwise stay in the engines' recursive filters and
+            // silence them for good (both engines, like the JS). Finite samples are
+            // copied exactly (x * 1.0f == x), so the engines still see what the JS sees.
+            int bad = 0;
+            for (int i = 0; i < len; ++i)
             {
-                for (int i = 0; i < len; ++i) scratch[i] = src[i] * g;
-                src = scratch;
+                const float x = in[pos + i];
+                if (std::isfinite (x)) scratch[i] = x * g;
+                else { scratch[i] = 0.0f; ++bad; }
             }
+            if (bad > 0)
+                meters.badSamples.fetch_add (bad, std::memory_order_relaxed);
+            const float* src = scratch;
             events.clear();
             if (isMono) mono->process (src, len, events);
             else poly->state.process (src, len, events);

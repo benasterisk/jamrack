@@ -1,4 +1,5 @@
-# VST3 plugin (docs/plugin-plan.md): Windows build + pluginval, artefact zip.
+# MidPluck VST3 (docs/plugin-plan.md): Windows build, engine tests and JS oracle,
+# pluginval, artefact zip.
 name: plugin
 
 on:
@@ -28,6 +29,12 @@ jobs:
       - name: Build (Release)
         run: cmake --build plugin/build --config Release --parallel
 
+      - name: Generic POLY profile header up to date
+        run: node plugin/tools/gen-profile-header.mjs --check
+
+      - name: Engine tests and JS equivalence oracle (ctest)
+        run: ctest --test-dir plugin/build -C Release --output-on-failure
+
       - name: pluginval
         shell: pwsh
         run: |
@@ -44,7 +51,7 @@ jobs:
       - name: Upload VST3 bundles
         uses: actions/upload-artifact@v4
         with:
-          name: jamrack-vst3-win64
+          name: midpluck-vst3-win64
           if-no-files-found: error
           path: |
             plugin/build/*_artefacts/Release/VST3/*.vst3

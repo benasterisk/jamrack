@@ -98,6 +98,7 @@ public:
         std::atomic<bool> eco { false };              // POLY
         std::atomic<int> notesSent { 0 };
         std::atomic<int> droppedEvents { 0 };         // engine events that did not fit the list (should stay 0)
+        std::atomic<int> badSamples { 0 };            // NaN/Inf input samples replaced by 0 before the engines
     };
     Meters meters;
 
