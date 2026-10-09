@@ -21,7 +21,7 @@
 //   audio      processBlock: no allocation, no lock, no std::function; the
 //              parameters are read through APVTS atomics
 //   message    a 100 ms timer frees retired POLY states and asks for rebuilds;
-//              the editor reads the meters (atomics) at 10 Hz
+//              the editor reads the meters (atomics) at 30 Hz
 //   builder    a juce::Thread renders the POLY state (bank, decomposer, note
 //              rule, tracker: tens of ms) at the host rate; it is published
 //              through an atomic pointer and swapped in at the top of
@@ -83,7 +83,7 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
-    /** Written by the audio thread, read by the editor at 10 Hz (relaxed atomics). */
+    /** Written by the audio thread, read by the editor at 30 Hz (relaxed atomics). */
     struct Meters
     {
         std::atomic<int> mode { midpluck::params::modeMono };
@@ -101,6 +101,10 @@ public:
         std::atomic<int> badSamples { 0 };            // NaN/Inf input samples replaced by 0 before the engines
     };
     Meters meters;
+
+    /** Message thread only (never read by the audio thread): the editor's last width,
+     *  restored when the window is reopened in the same session. */
+    int editorWidth = 0;
 
 private:
     using PolyEngineState = midpluck::poly::PolyEngineState;

@@ -62,19 +62,34 @@ Mêmes réglages et mêmes valeurs que la carte GUITARE de la page web.
 
 ## La fenêtre du plugin
 
-- Première ligne : **`MidPluck 0.1.0 (hash)`** — recopie-la dans ton compte rendu. Un
-  `+` après le hash signale un build fait avec des modifications non commitées.
-- Ligne d'état, rafraîchie 10 fois par seconde :
-  - MONO : la note entendue et son écart en cents, la **latence** attaque → note de la
-    dernière note, le niveau en dB ;
-  - POLY : le nombre de **voix**, le coût par pas d'analyse face au budget, le tag
-    **ECO** s'il s'allume, le niveau ; « POLY loading… » pendant les ~50 ms où le
-    moteur se construit au chargement ;
-  - toujours : **notes sent** (notes envoyées), et « bad input samples » si un
-    échantillon invalide (NaN, infini) est arrivé d'un appareil placé avant.
-- **Si le synthé reste muet** : si « notes sent » augmente, le plugin marche et c'est le
-  routage de Live ; s'il ne bouge pas, le plugin n'entend pas la guitare (entrée ou
-  niveau de la piste, réglage SENS).
+Une façade de rack dans le style de la carte GUITARE de JAMRACK (vis, boutons ambrés,
+voyants, écran ambré), rafraîchie 30 fois par seconde.
+
+- **En haut** : le voyant d'alimentation (turquoise = actif ; un clic = BYPASS), l'écran
+  d'état (« Listening », « Note E3 · 41 ms », « 3 voices · ECO », « POLY loading… »
+  pendant les ~50 ms où le moteur POLY se construit, « BYPASSED »), le sélecteur
+  **MONO | POLY β** et **BYPASS** (voyant rouge quand il est enclenché).
+- **ENGINE** (l'écran de gauche) :
+  - MONO : la note entendue en grand (noms de la page web : le do du milieu est C4),
+    l'aiguille d'accordeur en cents (turquoise à moins de 5 cents), le vumètre,
+    **LAT** = latence attaque → note de la dernière note, **NOTES** = notes envoyées ;
+  - POLY : le nombre de **voix** et six voyants, **HOP** = coût d'un pas d'analyse
+    face à son budget (en ms), le tag **ECO** (ambré quand il s'allume), NOTES.
+- **INPUT, NOTES, MIDI OUT** : les réglages du tableau ci-dessus. Bouton : glisser
+  verticalement ou molette ; **double-clic = valeur par défaut** (sur le chiffre pour
+  OCTAVE, TRANSPOSE, MIDI CH). En POLY, SENS, DECAY, DYN, BEND et BEND RANGE sont
+  grisés (POLY ne s'en sert pas) mais restent réglables. Le voyant **NOTE OUT** clignote
+  à chaque note envoyée.
+- **En bas à droite** : **`MidPluck 0.1.0 (hash)`** — recopie-la dans ton compte rendu.
+  Un `+` après le hash signale un build fait avec des modifications non commitées. À sa
+  gauche, en rouge, « bad input samples N » si un échantillon invalide (NaN, infini) est
+  arrivé d'un appareil placé avant, « dropped N » si des événements ont été perdus
+  (doit rester absent).
+- La fenêtre se redimensionne par le coin en bas à droite, de 75 % à 200 %, proportions
+  fixes ; elle rouvre à la dernière taille tant que Live reste ouvert.
+- **Si le synthé reste muet** : si NOTES augmente (et que NOTE OUT clignote), le plugin
+  marche et c'est le routage de Live ; s'il ne bouge pas, le plugin n'entend pas la
+  guitare (entrée ou niveau de la piste, réglage SENS).
 
 ## Check-list de la soirée MidPluck
 
@@ -226,8 +241,13 @@ D:\tools\vst3sdk\build\bin\Release\validator.exe "D:\VST3\MidPluck.vst3"
   --hop <s> js.json cpp.json` compare note pour note ; références GuitarSet dans
   `D:\poly-out`.
 - `node plugin/tools/gen-profile-header.mjs --check` : le profil POLY embarqué est à jour.
-- Code : `dsp/` (moteurs sans JUCE), `src/` (le plugin), `tools/` (dump_events, l'hôte
-  de test, le générateur de profil).
+- `plugin\build\midpluck_ui_snapshot_artefacts\Release\midpluck_ui_snapshot.exe <dossier>` :
+  dessine la fenêtre du plugin en PNG dans chaque état (MONO au repos et en jeu, POLY,
+  POLY loading, ECO, BYPASSED, alertes) à 100 % et 150 %, et redimensionnée à 75 % et
+  200 %, sans DAW.
+- Code : `dsp/` (moteurs sans JUCE), `src/` (le plugin ; `src/ui/` : l'apparence
+  JAMRACK), `resources/fonts/` (les trois polices de la page web), `tools/`
+  (dump_events, l'hôte de test, le générateur de profil, les captures de la fenêtre).
 
 ## Historique : le jalon M0 (7-8 octobre 2026)
 
@@ -254,6 +274,9 @@ sur GuitarSet) est dans l'historique git de ce fichier (commit `8f688c0`) et dan
 - **SDK VST3** tel qu'embarqué par JUCE 8.0.15
   (`modules/juce_audio_processors_headless/format_types/VST3_SDK/LICENSE.txt`) : MIT,
   « Copyright (c) 2025, Steinberg Media Technologies GmbH ».
+- **Polices** de la fenêtre (Unbounded, Barlow Condensed, Spline Sans Mono, embarquées
+  dans le plugin) : **SIL Open Font License 1.1** ; licences et provenance dans
+  `plugin/resources/fonts/` (un `OFL.txt` par famille, `README.md`).
 - **fdlibm** (fonctions mathématiques reprises de V8, `plugin/dsp/src/poly/v8math.cpp`
   et `mono_tracker.cpp`) : « Copyright (C) 1993 by Sun Microsystems, Inc. All rights
   reserved. Permission to use, copy, modify, and distribute this software is freely

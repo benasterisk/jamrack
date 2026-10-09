@@ -10,6 +10,8 @@
 #                       output, OpenMindLab / Omlb / Mdpk; bundle MidPluck.vst3
 #   jamrack_vst3_probe  command-line VST3 host that runs an installed plugin on a
 #                       WAV and records its MIDI (tools/vst3_probe.cpp)
+#   midpluck_ui_snapshot  renders the editor to PNG in every display state, no DAW
+#                       needed (tools/ui_snapshot.cpp)
 # The M0 prototypes (m0/, JAMRACK GTM Fx / Inst, codes Gtm0 / Gtm9) are no
 # longer built; their sources stay in m0/ for reference.
 #
@@ -149,9 +151,31 @@ juce_add_plugin(midpluck
   COPY_PLUGIN_AFTER_BUILD ${JAMRACK_COPY_AFTER_BUILD}
   VST3_COPY_DIR "${JAMRACK_VST3_DIR}")
 
+# The editor (src/PluginEditor.cpp + src/ui/): the JAMRACK look, with the web
+# app's three typefaces embedded as binary data (resources/fonts, SIL OFL 1.1,
+# static Latin subsets: about 270 kB, see resources/fonts/README.md).
+juce_add_binary_data(midpluck_ui_assets
+  HEADER_NAME "MidPluckAssets.h"
+  NAMESPACE MidPluckAssets
+  SOURCES
+    resources/fonts/unbounded/Unbounded-Medium.ttf
+    resources/fonts/unbounded/Unbounded-ExtraBold.ttf
+    resources/fonts/barlowcondensed/BarlowCondensed-Regular.ttf
+    resources/fonts/barlowcondensed/BarlowCondensed-Medium.ttf
+    resources/fonts/barlowcondensed/BarlowCondensed-SemiBold.ttf
+    resources/fonts/splinesansmono/SplineSansMono-Regular.ttf
+    resources/fonts/splinesansmono/SplineSansMono-Medium.ttf)
+set_target_properties(midpluck_ui_assets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+set(MIDPLUCK_EDITOR_SOURCES
+  src/PluginEditor.cpp
+  src/ui/JamrackLookAndFeel.cpp
+  src/ui/Widgets.cpp
+  src/ui/EngineDisplay.cpp)
+
 target_sources(midpluck PRIVATE
   src/PluginProcessor.cpp
-  src/PluginEditor.cpp)
+  ${MIDPLUCK_EDITOR_SOURCES})
 
 target_compile_definitions(midpluck PUBLIC
   JUCE_WEB_BROWSER=0
@@ -164,6 +188,7 @@ target_include_directories(midpluck PRIVATE "${JAMRACK_GEN_DIR}" "${CMAKE_CURREN
 
 target_link_libraries(midpluck PRIVATE
   midpluck_dsp
+  midpluck_ui_assets
   juce::juce_audio_utils
   PUBLIC
   juce::juce_recommended_config_flags
@@ -180,6 +205,32 @@ target_compile_definitions(jamrack_vst3_probe PRIVATE
   JUCE_WEB_BROWSER=0
   JUCE_USE_CURL=0)
 target_link_libraries(jamrack_vst3_probe PRIVATE
+  juce::juce_audio_utils
+  PUBLIC
+  juce::juce_recommended_config_flags
+  juce::juce_recommended_warning_flags)
+
+# midpluck_ui_snapshot: renders the editor to PNG without a DAW, for every
+# display state (MONO idle / playing, POLY, POLY loading, ECO, BYPASSED,
+# warnings) at 100 % and 150 % scaling (plugin/tools/ui_snapshot.cpp). It
+# compiles the plugin's own processor and editor sources with the plugin's
+# JucePlugin_Name and version, so what it renders is what the host shows.
+#   midpluck_ui_snapshot <output folder>
+juce_add_console_app(midpluck_ui_snapshot PRODUCT_NAME "midpluck_ui_snapshot")
+target_sources(midpluck_ui_snapshot PRIVATE
+  tools/ui_snapshot.cpp
+  src/PluginProcessor.cpp
+  ${MIDPLUCK_EDITOR_SOURCES})
+target_compile_definitions(midpluck_ui_snapshot PRIVATE
+  JucePlugin_Name="MidPluck"
+  JucePlugin_VersionString="${PROJECT_VERSION}"
+  JUCE_WEB_BROWSER=0
+  JUCE_USE_CURL=0)
+add_dependencies(midpluck_ui_snapshot jamrack_git_hash)
+target_include_directories(midpluck_ui_snapshot PRIVATE "${JAMRACK_GEN_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(midpluck_ui_snapshot PRIVATE
+  midpluck_dsp
+  midpluck_ui_assets
   juce::juce_audio_utils
   PUBLIC
   juce::juce_recommended_config_flags
