@@ -11,8 +11,11 @@ in the plugin binary by `juce_add_binary_data` (target `midpluck_ui_assets` in
 | `splinesansmono/` | Spline Sans Mono | Regular (400), Medium (500) | values, LCD, readouts |
 
 All three are licensed under the **SIL Open Font License 1.1**; the full licence of
-each family is the `OFL.txt` file next to its fonts and must ship with them. None of
-the three declares a Reserved Font Name.
+each family is the `OFL.txt` file next to its fonts and must ship with them: the build
+copies the three into the plugin bundle as
+`MidPluck.vst3/Contents/Resources/OFL-{Unbounded,BarlowCondensed,SplineSansMono}.txt`
+(POST_BUILD step in `plugin/CMakeLists.txt`, before the copy into the VST3 folder).
+None of the three declares a Reserved Font Name.
 
 - Unbounded: Copyright 2022 The Unbounded Project Authors
   (https://github.com/googlefonts/unbounded)

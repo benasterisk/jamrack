@@ -35,6 +35,12 @@ jobs:
       - name: Engine tests and JS equivalence oracle (ctest)
         run: ctest --test-dir plugin/build -C Release --output-on-failure
 
+      - name: Editor snapshots and control wiring (midpluck_ui_snapshot)
+        shell: pwsh
+        run: |
+          ./plugin/build/midpluck_ui_snapshot_artefacts/Release/midpluck_ui_snapshot.exe plugin/build/ui-snapshots
+          if ($LASTEXITCODE -ne 0) { throw "midpluck_ui_snapshot failed" }
+
       - name: pluginval
         shell: pwsh
         run: |
@@ -56,4 +62,7 @@ jobs:
           path: |
             plugin/build/*_artefacts/Release/VST3/*.vst3
             plugin/build/pluginval
+            plugin/build/ui-snapshots
             plugin/README.md
+            plugin/resources/fonts/README.md
+            plugin/resources/fonts/*/OFL.txt

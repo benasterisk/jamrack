@@ -323,6 +323,7 @@ void MidPluckProcessor::dispatch (const EventList& list, int base) noexcept
                 midiOut->addEvent (juce::MidiMessage::noteOn (curChannel, m, static_cast<juce::uint8> (v)), at);
                 sounding.add (m, curChannel);
                 meters.notesSent.fetch_add (1, std::memory_order_relaxed);
+                meters.noteOut.store (m, std::memory_order_relaxed);
                 break;
             }
             case EventType::NoteOff:
@@ -458,6 +459,7 @@ void MidPluckProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         }
         meters.mode.store (activeMode, std::memory_order_relaxed);
         meters.bypassed.store (true, std::memory_order_relaxed);
+        meters.notesHeld.store (sounding.size(), std::memory_order_relaxed);
         midiOut = nullptr;
         return;
     }
@@ -538,6 +540,7 @@ void MidPluckProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
 
     meters.mode.store (activeMode, std::memory_order_relaxed);
     meters.bypassed.store (false, std::memory_order_relaxed);
+    meters.notesHeld.store (sounding.size(), std::memory_order_relaxed);
     midiOut = nullptr;
     // the audio buffer is left untouched: pass-through
 }

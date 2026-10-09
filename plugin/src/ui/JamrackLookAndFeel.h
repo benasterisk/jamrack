@@ -28,6 +28,7 @@ namespace jamrack
         inline const juce::Colour amberDim  { 0xff7a5626 };
         inline const juce::Colour teal      { 0xff3ad0c4 };
         inline const juce::Colour red       { 0xffff5040 };
+        inline const juce::Colour warnText  { 0xffff8a7a };   // red text that stays legible on the LCD
         inline const juce::Colour green     { 0xff5fbf72 };   // level meter, low segments
         inline const juce::Colour lcdBg     { 0xff201807 };
         inline const juce::Colour lcdTxt    { 0xffffc46b };
@@ -91,6 +92,8 @@ namespace jamrack
                                                juce::Rectangle<int> parentArea) override;
         void drawTooltip (juce::Graphics&, const juce::String& text, int width, int height) override;
 
+        /** The grip engraved in the face's corner; w x h = 18 x 18 at the base size, scaled
+         *  with the face by the editor. */
         void drawCornerResizer (juce::Graphics&, int w, int h, bool isMouseOver, bool isMouseDragging) override;
 
     private:
@@ -119,18 +122,33 @@ namespace jamrack
     /** A slotted rack screw (.module::before), its slot turned by `angle` radians. */
     void drawScrew (juce::Graphics&, juce::Point<float> centre, float radius, float angle);
 
+    /** True for the characters the embedded label and mono subsets lack (arrows,
+     *  Greek): text in those faces draws them with Unbounded instead (arrangeLine). */
+    bool needsBrandGlyph (juce::juce_wchar) noexcept;
+
+    /** One line of text in `font`, the characters it lacks (needsBrandGlyph) in `alt`,
+     *  justified in `area` like Graphics::drawText. */
+    juce::GlyphArrangement arrangeLine (const juce::String& text, const juce::Font& font, const juce::Font& alt,
+                                        juce::Rectangle<float> area, juce::Justification);
+
     /** Text with a soft halo (CSS text-shadow 0 0 radius colour). The blurred halo is an
      *  image cached until the text, font, area, colour or scale change, so a display
-     *  repainted at 30 Hz blurs only when its text changes. */
+     *  repainted at 30 Hz blurs only when its text changes. With `alt`, the characters
+     *  `font` lacks are drawn in `alt` (arrangeLine). */
     class GlowText
     {
     public:
         void draw (juce::Graphics&, const juce::String& text, const juce::Font&, juce::Rectangle<float> area,
-                   juce::Justification, juce::Colour textColour, juce::Colour glowColour, float radius);
+                   juce::Justification, juce::Colour textColour, juce::Colour glowColour, float radius,
+                   const juce::Font* alt = nullptr);
 
     private:
+        void drawText (juce::Graphics&) const;
+
         juce::String text;
         juce::Font font { juce::FontOptions {} };
+        juce::Font altFont { juce::FontOptions {} };
+        bool hasAlt = false;
         juce::Rectangle<float> area, haloArea;
         juce::Justification just { juce::Justification::centred };
         float radius = 0.0f, scale = 0.0f, haloScale = 1.0f;

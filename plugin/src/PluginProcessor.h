@@ -97,6 +97,8 @@ public:
         std::atomic<float> budgetMs { 0.0f };        // POLY: ECO budget (rule 3.3-6)
         std::atomic<bool> eco { false };              // POLY
         std::atomic<int> notesSent { 0 };
+        std::atomic<int> notesHeld { 0 };             // notes held in the host (note-on sent, note-off not yet), end of the last block
+        std::atomic<int> noteOut { -1 };              // number of the last note-on sent (after octave / transpose), -1 = none yet
         std::atomic<int> droppedEvents { 0 };         // engine events that did not fit the list (should stay 0)
         std::atomic<int> badSamples { 0 };            // NaN/Inf input samples replaced by 0 before the engines
     };

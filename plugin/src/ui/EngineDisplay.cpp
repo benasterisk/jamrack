@@ -16,28 +16,30 @@ namespace jamrack
             return i >= 13 ? red : (i >= 9 ? amber : green);
         }
 
-        /** "E3", "C#4": scientific names (C4 = MIDI 60), as the web card (js/i18n noteName). */
-        juce::String noteName (int midi)
+        const juce::String& dash()
         {
-            static const char* const names[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-            const int m = juce::jlimit (0, 127, midi);
-            return juce::String (names[m % 12]) + juce::String (m / 12 - 1);
-        }
-
-        juce::String usToMs (int us)
-        {
-            return juce::String ((double) us / 1000.0, 2);
+            static const juce::String d (juce::CharPointer_UTF8 ("\xe2\x80\x94"));   // the one placeholder: an em dash
+            return d;
         }
     }
 
     EngineDisplay::EngineDisplay()
     {
         noteFont = fonts->get (Face::brandHeavy, 34.0f);
+        idleFont = fonts->get (Face::brand, 22.0f);       // the idle dash: thin, as the web's 22 px one
         monoSmall = fonts->get (Face::mono, 11.0f);
+        monoStrong = fonts->get (Face::monoMedium, 11.0f);
         centsFont = fonts->get (Face::monoMedium, 11.5f);
         labelFont = fonts->get (Face::labelSemi, 11.5f, 0.16f);
         tagFont = fonts->get (Face::labelSemi, 11.0f, 0.12f);
         setInterceptsMouseClicks (true, false);   // tooltip only
+    }
+
+    juce::String EngineDisplay::noteName (int midi)
+    {
+        static const char* const names[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        const int m = juce::jlimit (0, 127, midi);
+        return juce::String (names[m % 12]) + juce::String (m / 12 - 1);
     }
 
     int EngineDisplay::segmentsForDb (float db) noexcept
@@ -51,10 +53,7 @@ namespace jamrack
     {
         if (v == view)
             return;
-        const bool modeChanged = v.poly != view.poly;
         view = v;
-        if (modeChanged)
-            background = {};
         repaint();
     }
 
@@ -62,40 +61,41 @@ namespace jamrack
     {
         const auto r = getLocalBounds().toFloat();
         const float inner = r.getWidth() - 2.0f * pad;
-        noteArea = { pad, pad - 2.0f, 104.0f, 48.0f };
-        sideArea = { pad + 112.0f, pad, inner - 112.0f, 46.0f };
-        tunerBar = { sideArea.getX(), sideArea.getY() + 12.0f, sideArea.getWidth(), 10.0f };
-        tunerText = { sideArea.getX(), tunerBar.getBottom() + 5.0f, sideArea.getWidth(), 15.0f };
-        voicesLabel = { sideArea.getX(), sideArea.getY() + 1.0f, sideArea.getWidth(), 15.0f };
-        ecoTag = { sideArea.getRight() - 38.0f, sideArea.getY(), 38.0f, 17.0f };
-        for (int i = 0; i < maxVoices; ++i)
-        {
-            const float step = sideArea.getWidth() / (float) maxVoices;
-            voiceLeds[i] = { sideArea.getX() + step * ((float) i + 0.5f), sideArea.getY() + 33.0f };
-        }
+        const float h = r.getHeight();
 
-        meterBox = { pad, pad + 58.0f, inner - 52.0f, 18.0f };
-        dbArea = { meterBox.getRight() + 4.0f, meterBox.getY(), r.getWidth() - pad - meterBox.getRight() - 4.0f, meterBox.getHeight() };
+        // three bands: big figure + side (tuner or voices), level meter, readouts
+        const float readoutH = 16.0f, meterH = 16.0f;
+        readoutArea = { pad, h - 10.0f - readoutH, inner, readoutH };
+        meterBox = { pad, readoutArea.getY() - 6.0f - meterH, inner - 52.0f, meterH };
+        dbArea = { meterBox.getRight() + 4.0f, meterBox.getY(), r.getWidth() - pad - meterBox.getRight() - 4.0f, meterH };
+
+        const float topH = meterBox.getY() - 6.0f;     // the band above the meter
+        noteArea = { pad, 2.0f, 104.0f, topH - 2.0f };
+        const float mid = noteArea.getCentreY();
+        sideArea = { pad + 112.0f, mid - 20.0f, inner - 112.0f, 40.0f };
+
+        // MONO: the cents scale on the note's centre line, its reading under it
+        tunerBar = { sideArea.getX(), mid - 9.0f, sideArea.getWidth(), 10.0f };
+        tunerText = { sideArea.getX(), tunerBar.getBottom() + 4.0f, sideArea.getWidth(), 14.0f };
+
+        // POLY: six voice LEDs on the note's centre line; the ECO tag at the end of the
+        // readout line, next to the CPU figure it is about
+        ledRow = { sideArea.getX(), mid - 8.0f, sideArea.getWidth(), 16.0f };
+        const float step = juce::jmin (17.0f, ledRow.getWidth() / (float) maxVoices);
+        const float x0 = ledRow.getCentreX() - step * (float) maxVoices * 0.5f;
+        for (int i = 0; i < maxVoices; ++i)
+            voiceLeds[i] = { x0 + step * ((float) i + 0.5f), mid };
+        ecoTag = { readoutArea.getRight() - 34.0f, readoutArea.getCentreY() - 7.5f, 34.0f, 15.0f };
+
         const float gap = 2.0f;
         const auto inside = meterBox.reduced (4.0f, 4.0f);
         const float sw = (inside.getWidth() - gap * (float) (segments - 1)) / (float) segments;
         for (int i = 0; i < segments; ++i)
             segmentRects[i] = { inside.getX() + (sw + gap) * (float) i, inside.getY(), sw, inside.getHeight() };
-
-        readoutArea = { pad, meterBox.getBottom() + 9.0f, inner, 16.0f };
-        monoAdvance = juce::GlyphArrangement::getStringWidth (monoSmall, "0000000000") / 10.0f;
-        background = {};
     }
 
-    void EngineDisplay::renderBackground (float scale)
+    void EngineDisplay::paintBackground (juce::Graphics& g) const
     {
-        const int w = juce::jmax (1, (int) std::ceil ((float) getWidth() * scale));
-        const int h = juce::jmax (1, (int) std::ceil ((float) getHeight() * scale));
-        background = juce::Image (juce::Image::ARGB, w, h, true);
-        backgroundScale = scale;
-        juce::Graphics g (background);
-        g.addTransform (juce::AffineTransform::scale (scale));
-
         // .gtr-tuner: lcd-bg box, black border, inner shadow
         drawRecessed (g, getLocalBounds().toFloat().reduced (0.5f, 0.5f).withTrimmedBottom (1.0f), 6.0f, lcdBg);
 
@@ -106,11 +106,9 @@ namespace jamrack
         g.drawRoundedRectangle (meterBox.reduced (0.5f), 4.0f, 1.0f);
         g.setColour (juce::Colours::white.withAlpha (0.05f));
         g.drawHorizontalLine ((int) std::round (meterBox.getBottom() + 0.5f), meterBox.getX() + 4.0f, meterBox.getRight() - 4.0f);
+        g.setColour (lineSoft);
         for (const auto& s : segmentRects)
-        {
-            g.setColour (lineSoft);
             g.fillRoundedRectangle (s, 1.2f);
-        }
 
         if (! view.poly)
         {
@@ -132,15 +130,18 @@ namespace jamrack
     }
 
     void EngineDisplay::drawReadout (juce::Graphics& g, juce::Rectangle<float> area,
-                                     std::initializer_list<std::pair<juce::String, bool>> runs) const
+                                     std::initializer_list<std::pair<juce::String, juce::Colour>> runs) const
     {
-        g.setFont (monoSmall);
         float x = area.getX();
-        for (const auto& run : runs)
+        for (const auto& [text, colour] : runs)
         {
-            const float w = monoAdvance * (float) run.first.length();
-            g.setColour (run.second && ! view.bypassed ? lcdTxt : dim);
-            g.drawText (run.first, juce::Rectangle<float> (x, area.getY(), w + 4.0f, area.getHeight()),
+            // dim captions in the regular face, values in their colour (medium face when not lcd-txt: alerts)
+            const bool caption = colour == dim;
+            const auto& f = (caption || colour == lcdTxt) ? monoSmall : monoStrong;
+            const float w = juce::GlyphArrangement::getStringWidth (f, text);
+            g.setFont (f);
+            g.setColour (view.bypassed ? dim : colour);
+            g.drawText (text, juce::Rectangle<float> (x, area.getY(), w + 4.0f, area.getHeight()),
                         juce::Justification::centredLeft, false);
             x += w;
         }
@@ -148,35 +149,44 @@ namespace jamrack
 
     void EngineDisplay::paint (juce::Graphics& g)
     {
-        const float ps = physicalScale (g);
-        if (background.isNull() || ps != backgroundScale)
-            renderBackground (ps);
-        g.drawImageTransformed (background, juce::AffineTransform::scale (1.0f / backgroundScale));
+        paintBackground (g);
 
         const bool live = ! view.bypassed;
-        const juce::String dash (juce::CharPointer_UTF8 ("\xe2\x80\x94"));
         const juce::String dot (juce::CharPointer_UTF8 (" \xc2\xb7 "));
 
-        // ---- big figure: the note (MONO) or the voice count (POLY)
-        juce::String big = dash;
-        bool lit = false;
-        if (live && ! view.poly && view.note >= 0)
+        // ---- big figure: the note (MONO) or the voice count (POLY). As on the web
+        // card: amber while a pitch is only heard, teal while a note is held.
+        juce::String big;
+        juce::Colour colour = noteIdle;
+        if (live && ! view.poly)
         {
-            big = noteName (view.note);
-            lit = true;
+            if (view.note >= 0)
+            {
+                big = noteName (view.note);
+                colour = view.heldNote >= 0 ? teal : lcdTxt;
+            }
+            else if (view.heldNote >= 0)
+            {
+                big = noteName (view.heldNote);    // held while the pitch tracker lost it (fading string)
+                colour = teal;
+            }
         }
         else if (live && view.poly && view.polyReady && view.voices > 0)
         {
             big = juce::String (view.voices);
-            lit = true;
+            colour = teal;
         }
-        if (lit)
-            noteGlow.draw (g, big, noteFont, noteArea, juce::Justification::centred, teal, teal.withAlpha (0.6f), 10.0f);
+        if (big.isNotEmpty())
+        {
+            const bool held = colour == teal;
+            noteGlow.draw (g, big, noteFont, noteArea, juce::Justification::centred, colour,
+                           colour.withAlpha (held ? 0.55f : 0.4f), held ? 10.0f : 8.0f);
+        }
         else
         {
-            g.setFont (noteFont);
+            g.setFont (idleFont);
             g.setColour (noteIdle);
-            g.drawText (big, noteArea, juce::Justification::centred, false);
+            g.drawText (dash(), noteArea, juce::Justification::centred, false);
         }
 
         // ---- side: tuner (MONO) or voices (POLY)
@@ -186,20 +196,20 @@ namespace jamrack
             const int c = juce::jlimit (-50, 50, view.cents);
             const float x = tunerBar.getCentreX() + (heard ? (float) c / 50.0f * (tunerBar.getWidth() * 0.5f - 2.0f) : 0.0f);
             const auto needle = juce::Rectangle<float> (4.0f, 16.0f).withCentre ({ x, tunerBar.getCentreY() });
-            const auto colour = ! heard ? noteIdle : (std::abs (view.cents) < 5 ? teal : amber);
+            const auto needleColour = ! heard ? noteIdle : (std::abs (view.cents) < 5 ? teal : amber);
             if (heard)
             {
-                g.setColour (colour.withAlpha (0.22f));
+                g.setColour (needleColour.withAlpha (0.22f));
                 g.fillRoundedRectangle (needle.expanded (4.0f, 3.0f), 5.0f);
-                g.setColour (colour.withAlpha (0.35f));
+                g.setColour (needleColour.withAlpha (0.35f));
                 g.fillRoundedRectangle (needle.expanded (2.0f, 1.5f), 3.5f);
             }
-            g.setColour (colour);
+            g.setColour (needleColour);
             g.fillRoundedRectangle (needle, 2.0f);
 
-            g.setFont (centsFont);
             if (heard)
             {
+                g.setFont (centsFont);
                 g.setColour (lcdTxt);
                 g.drawText ((view.cents > 0 ? "+" : "") + juce::String (view.cents) + " ct", tunerText,
                             juce::Justification::centred, false);
@@ -213,13 +223,18 @@ namespace jamrack
         }
         else
         {
-            const bool loading = ! view.polyReady;
-            g.setFont (labelFont);
-            g.setColour (live && loading ? amber : dim);
-            g.drawText (live && loading ? juce::String (juce::CharPointer_UTF8 ("LOADING\xe2\x80\xa6")) : juce::String ("VOICES"),
-                        voicesLabel, juce::Justification::centredLeft, false);
-            for (int i = 0; i < maxVoices; ++i)
-                drawLed (g, voiceLeds[i], 5.0f, teal, live && view.polyReady && i < view.voices);
+            if (live && ! view.polyReady)
+            {
+                g.setFont (labelFont);
+                g.setColour (amber);
+                g.drawText (juce::String (juce::CharPointer_UTF8 ("LOADING\xe2\x80\xa6")), ledRow,
+                            juce::Justification::centred, false);
+            }
+            else
+            {
+                for (int i = 0; i < maxVoices; ++i)
+                    drawLed (g, voiceLeds[i], 4.5f, teal, live && i < view.voices);
+            }
 
             // ECO tag: unlit outline, amber when the engine sheds work (rule 3.3-6)
             const bool ecoOn = live && view.polyReady && view.eco;
@@ -239,35 +254,35 @@ namespace jamrack
         for (int i = 0; i < litCount; ++i)
         {
             const auto& s = segmentRects[i];
-            const auto colour = segmentColour (i);
-            g.setColour (colour.withAlpha (0.18f));
+            const auto segColour = segmentColour (i);
+            g.setColour (segColour.withAlpha (0.18f));
             g.fillRoundedRectangle (s.expanded (1.5f, 1.5f), 2.0f);
-            g.setColour (colour);
+            g.setColour (segColour);
             g.fillRoundedRectangle (s, 1.2f);
         }
         g.setFont (monoSmall);
         g.setColour (dim);
-        g.drawText (live && view.levelDb > -60 ? juce::String (view.levelDb) + " dB" : dash + " dB", dbArea,
+        g.drawText ((live && view.levelDb > -60 ? juce::String (view.levelDb) : dash()) + " dB", dbArea,
                     juce::Justification::centredRight, false);
 
-        // ---- readouts
+        // ---- readouts (the web card's words: TRK in MONO, CPU in POLY)
         const auto notes = juce::String (view.notes);
         if (! view.poly)
         {
-            drawReadout (g, readoutArea, { { "LAT ", false },
-                                           { view.latMs >= 0 ? juce::String (view.latMs) : juce::String ("--"), true },
-                                           { " ms" + dot + "NOTES ", false },
-                                           { notes, true } });
+            drawReadout (g, readoutArea, { { "TRK ", dim },
+                                           { view.trkMs >= 0 ? juce::String (view.trkMs) : dash(), lcdTxt },
+                                           { " ms" + dot + "NOTES ", dim },
+                                           { notes, lcdTxt } });
         }
         else
         {
-            const bool ready = view.polyReady;
-            drawReadout (g, readoutArea, { { "HOP ", false },
-                                           { ready ? usToMs (view.hopUs) : juce::String ("--"), true },
-                                           { " / ", false },
-                                           { usToMs (view.budgetUs), true },
-                                           { " ms" + dot + "NOTES ", false },
-                                           { notes, true } });
+            const bool known = view.polyReady && view.cpuPct >= 0;
+            // amber from 80 % (where ECO starts), red from 100 % (the analysis no longer keeps up)
+            const auto cpuColour = ! known ? lcdTxt : (view.cpuPct >= 100 ? warnText : (view.cpuPct >= 80 ? amber : lcdTxt));
+            drawReadout (g, readoutArea, { { "CPU ", dim },
+                                           { known ? juce::String (view.cpuPct) : dash(), cpuColour },
+                                           { " %" + dot + "NOTES ", dim },
+                                           { notes, lcdTxt } });
         }
     }
 }

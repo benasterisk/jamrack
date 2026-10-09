@@ -58,7 +58,12 @@ fait sur une seule piste).
 | MIDI CH | 1..16 / 1 | canal MIDI de sortie |
 | BYPASS | on / off | contourne le plugin (les notes en cours sont relâchées) |
 
-Mêmes réglages et mêmes valeurs que la carte GUITARE de la page web.
+Mêmes réglages et mêmes valeurs que la carte GUITARE de la page web. Dans Live
+(couloirs d'automation, liste des paramètres) et dans REAPER, les valeurs s'affichent
+dans les unités de la façade : GAIN en dB (« +0.0 dB » à 1, « +6.0 dB » à 2), SENS,
+DECAY et DYN de 0 à 100 ; pour GAIN, on peut y taper « +6 » (en dB) ou « 2x ». Seul le
+texte affiché a changé : les automations et les projets déjà enregistrés restent
+valables.
 
 ## La fenêtre du plugin
 
@@ -66,28 +71,48 @@ Une façade de rack dans le style de la carte GUITARE de JAMRACK (vis, boutons a
 voyants, écran ambré), rafraîchie 30 fois par seconde.
 
 - **En haut** : le voyant d'alimentation (turquoise = actif ; un clic = BYPASS), l'écran
-  d'état (« Listening », « Note E3 · 41 ms », « 3 voices · ECO », « POLY loading… »
-  pendant les ~50 ms où le moteur POLY se construit, « BYPASSED »), le sélecteur
-  **MONO | POLY β** et **BYPASS** (voyant rouge quand il est enclenché).
-- **ENGINE** (l'écran de gauche) :
-  - MONO : la note entendue en grand (noms de la page web : le do du milieu est C4),
-    l'aiguille d'accordeur en cents (turquoise à moins de 5 cents), le vumètre,
-    **LAT** = latence attaque → note de la dernière note, **NOTES** = notes envoyées ;
-  - POLY : le nombre de **voix** et six voyants, **HOP** = coût d'un pas d'analyse
-    face à son budget (en ms), le tag **ECO** (ambré quand il s'allume), NOTES.
-- **INPUT, NOTES, MIDI OUT** : les réglages du tableau ci-dessus. Bouton : glisser
-  verticalement ou molette ; **double-clic = valeur par défaut** (sur le chiffre pour
-  OCTAVE, TRANSPOSE, MIDI CH). En POLY, SENS, DECAY, DYN, BEND et BEND RANGE sont
-  grisés (POLY ne s'en sert pas) mais restent réglables. Le voyant **NOTE OUT** clignote
-  à chaque note envoyée.
+  d'état, le sélecteur **MONO | POLY β** (le choix en cours allumé en ambre, comme sur la
+  page web ; la molette de la souris ne le change pas, pour ne pas couper les notes en
+  passant dessus) et **BYPASS** (voyant rouge quand il est enclenché).
+- **L'écran d'état** dit ce que fait le plugin, comme celui de la page web :
+  - « Listening » en MONO ; « POLY β · plucked notes only » en POLY (POLY ne réagit
+    qu'aux cordes pincées), « POLY β · loading… » pendant les ~50 ms où le moteur POLY
+    se construit, « POLY β · ECO: lighter analysis » quand ECO allège l'analyse ;
+  - « BYPASSED · audio passes, no MIDI » ;
+  - quand OCTAVE ou TRANSPOSE décalent la note : la note jouée et la note envoyée,
+    par exemple « A3 → F#4 · MIDI 66 ». Le numéro MIDI tranche les noms : Live appelle
+    le MIDI 60 « C3 », la fenêtre et la page web « C4 » ;
+  - en rouge pendant 3 secondes : « Input glitch: bad samples silenced » (un échantillon
+    invalide, NaN ou infini, est arrivé d'un appareil placé avant ; il est remplacé par
+    du silence) ou « MIDI overflow: events dropped » (doit ne jamais apparaître). Les
+    totaux depuis le chargement du plugin sont dans l'infobulle de l'écran.
+- **TUNER** (l'écran de gauche, en MONO) : la note en grand, **ambre** quand la hauteur
+  est seulement entendue, **turquoise** quand la note MIDI est tenue (vraiment envoyée)
+  — une note ambre qui ne passe jamais au turquoise = attaque trop faible pour SENS ;
+  l'aiguille d'accordeur en cents (turquoise à moins de 5 cents), le vumètre,
+  **TRK** = temps entre l'attaque et la note pour la dernière note (le même TRK que la
+  page web ; la latence totale y ajoute les tampons de l'hôte), **NOTES** = notes
+  envoyées. Noms de la page web : le do du milieu est C4.
+- **VOICES** (le même écran, en POLY) : le nombre de voix et six voyants, **CPU** = coût
+  d'un pas d'analyse face à son budget, en % (ambre à partir de 80 %, où ECO
+  s'enclenche ; rouge à 100 % : l'analyse ne suit plus), le tag **ECO** (ambré quand il
+  s'allume), NOTES.
+- **INPUT, NOTES, MIDI OUT** : les réglages du tableau ci-dessus, affichés comme sur la
+  page web : GAIN en dB (1 = +0dB, 2 = +6dB, 10 = +20dB, 0,1 = −20dB), SENS, DECAY et
+  DYN de 0 à 100 (0,5 = 50). Bouton : glisser verticalement ou molette ;
+  **double-clic = valeur par défaut** (sur le chiffre pour OCTAVE, TRANSPOSE, MIDI CH).
+  La flèche **↺** à côté de INPUT et de NOTES remet les boutons de la section à leur
+  valeur par défaut (comme sur la page web). La molette ne change pas MIDI CH (un
+  changement de canal coupe les notes). En POLY, SENS, DECAY, DYN, BEND et BEND RANGE
+  sont grisés et marqués **MONO ONLY** (POLY ne s'en sert pas) mais restent réglables.
+  Le voyant **NOTE OUT** reste allumé tant qu'une note est tenue et clignote à chaque
+  nouvelle note.
 - **En bas à droite** : **`MidPluck 0.1.0 (hash)`** — recopie-la dans ton compte rendu.
-  Un `+` après le hash signale un build fait avec des modifications non commitées. À sa
-  gauche, en rouge, « bad input samples N » si un échantillon invalide (NaN, infini) est
-  arrivé d'un appareil placé avant, « dropped N » si des événements ont été perdus
-  (doit rester absent).
-- La fenêtre se redimensionne par le coin en bas à droite, de 75 % à 200 %, proportions
-  fixes ; elle rouvre à la dernière taille tant que Live reste ouvert.
-- **Si le synthé reste muet** : si NOTES augmente (et que NOTE OUT clignote), le plugin
+  Un `+` après le hash signale un build fait avec des modifications non commitées.
+- La fenêtre se redimensionne par le coin en bas à droite, de 100 % à 200 %, toujours
+  exactement au format 4:1 (le dessin tombe sur des pixels entiers, donc net) ; elle
+  rouvre à la dernière taille tant que Live reste ouvert.
+- **Si le synthé reste muet** : si NOTES augmente (et que NOTE OUT s'allume), le plugin
   marche et c'est le routage de Live ; s'il ne bouge pas, le plugin n'entend pas la
   guitare (entrée ou niveau de la piste, réglage SENS).
 
@@ -242,9 +267,16 @@ D:\tools\vst3sdk\build\bin\Release\validator.exe "D:\VST3\MidPluck.vst3"
   `D:\poly-out`.
 - `node plugin/tools/gen-profile-header.mjs --check` : le profil POLY embarqué est à jour.
 - `plugin\build\midpluck_ui_snapshot_artefacts\Release\midpluck_ui_snapshot.exe <dossier>` :
-  dessine la fenêtre du plugin en PNG dans chaque état (MONO au repos et en jeu, POLY,
-  POLY loading, ECO, BYPASSED, alertes) à 100 % et 150 %, et redimensionnée à 75 % et
-  200 %, sans DAW.
+  dessine la fenêtre du plugin en PNG dans chaque état (MONO au repos, note entendue,
+  note jouée, POLY, POLY loading, ECO, BYPASSED, alerte, réglages décalés, fenêtre
+  ouverte avant que l'hôte ait préparé le plugin) à 100 % et 150 %, et à sa plus petite
+  et sa plus grande taille, sans DAW. Il vérifie aussi (code de sortie 1 sinon) : que
+  chaque réglage pilote son paramètre et le suit, les ↺, la molette (jamais sur MODE ni
+  MIDI CH), les infobulles, le texte de l'écran et la couleur de la note dans chaque
+  état, NOTE OUT, le texte des paramètres vu par l'hôte (relu à l'identique) et le
+  format 4:1 exact.
+- Le bundle contient les licences des polices (`Contents\Resources\OFL-*.txt`, SIL OFL
+  1.1) : un zip ou une Release du dossier `MidPluck.vst3` les emporte avec lui.
 - Code : `dsp/` (moteurs sans JUCE), `src/` (le plugin ; `src/ui/` : l'apparence
   JAMRACK), `resources/fonts/` (les trois polices de la page web), `tools/`
   (dump_events, l'hôte de test, le générateur de profil, les captures de la fenêtre).

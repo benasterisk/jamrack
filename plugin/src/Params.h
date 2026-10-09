@@ -69,24 +69,80 @@ namespace midpluck::params
         bool isDiscrete() const override { return true; }
     };
 
+    //==============================================================================
+    // Parameter text, as hosts show it (automation lanes, parameter lists, text
+    // entry). It speaks the units of the plugin face and of the web card: GAIN in
+    // dB, SENS / DECAY / DYN from 0 to 100. Only the text changes: the stored
+    // values, ranges and defaults are the same, so states and automation stay valid.
+    // Every text reads back to exactly the value it was made from (0.01 grid),
+    // which hosts and vst3_probe --state-test rely on.
+
+    /** v on the 0.01 grid of the slider parameters (what the parameter stores). */
+    inline double onGrid (double v) noexcept { return std::round (v * 100.0) / 100.0; }
+
+    /** GAIN (0.1..10) as dB with the fewest decimals (1 to 3) that read back to the
+     *  same 0.01 step: 1 -> "+0.0 dB", 2 -> "+6.0 dB", 1.3 -> "+2.3 dB", 9.99 -> "+19.99 dB". */
+    inline juce::String gainHostText (float value)
+    {
+        const double v = onGrid (juce::jlimit (0.1, 10.0, (double) value));
+        const double db = 20.0 * std::log10 (v);
+        juce::String s;
+        for (int decimals = 1; decimals <= 3; ++decimals)
+        {
+            s = juce::String (db, decimals);
+            if (onGrid (std::pow (10.0, s.getDoubleValue() / 20.0)) == v)
+                break;
+        }
+        if (db >= 0.0 && ! s.startsWithChar ('-'))
+            s = "+" + s;
+        return s + " dB";
+    }
+
+    /** Host text entry for GAIN: dB ("+6", "-3.5 dB"), or a factor when it ends in "x" ("2x"). */
+    inline float gainFromHostText (const juce::String& text)
+    {
+        const auto t = text.trim().toLowerCase();
+        if (t.startsWith ("-inf"))
+            return 0.1f;
+        const double n = t.retainCharacters ("+-.0123456789").getDoubleValue();
+        const double v = t.endsWithChar ('x') ? n : std::pow (10.0, n / 20.0);
+        return (float) juce::jlimit (0.1, 10.0, onGrid (v));
+    }
+
+    /** SENS / DECAY / DYN (0..1) as 0..100, like the web card (fmtPct). */
+    inline juce::String percentHostText (float value)
+    {
+        return juce::String (juce::roundToInt (juce::jlimit (0.0f, 1.0f, value) * 100.0f));
+    }
+
+    /** Host text entry for SENS / DECAY / DYN: 0..100. */
+    inline float percentFromHostText (const juce::String& text)
+    {
+        const double n = text.trim().retainCharacters ("+-.0123456789").getDoubleValue();
+        return (float) juce::jlimit (0.0, 1.0, onGrid (n / 100.0));
+    }
+
     inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     {
         using namespace juce;
         AudioProcessorValueTreeState::ParameterLayout layout;
 
-        auto twoDecimals = AudioParameterFloatAttributes().withStringFromValueFunction (
-            [] (float v, int) { return String (v, 2); });
+        const auto percent = AudioParameterFloatAttributes()
+                                 .withStringFromValueFunction ([] (float v, int) { return percentHostText (v); })
+                                 .withValueFromStringFunction ([] (const String& t) { return percentFromHostText (t); });
 
         NormalisableRange<float> gainRange (0.1f, 10.0f, 0.01f);
         gainRange.setSkewForCentre (1.0f);
         layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id::gain, 1 }, "GAIN", gainRange, 1.0f,
-                                                           twoDecimals.withLabel ("x")));
+                                                           AudioParameterFloatAttributes()
+                                                               .withStringFromValueFunction ([] (float v, int) { return gainHostText (v); })
+                                                               .withValueFromStringFunction ([] (const String& t) { return gainFromHostText (t); })));
         layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id::sens, 1 }, "SENS",
-                                                           NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.5f, twoDecimals));
+                                                           NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.5f, percent));
         layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id::decay, 1 }, "DECAY",
-                                                           NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.5f, twoDecimals));
+                                                           NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.5f, percent));
         layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id::dyn, 1 }, "DYN",
-                                                           NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.7f, twoDecimals));
+                                                           NormalisableRange<float> (0.0f, 1.0f, 0.01f), 0.7f, percent));
         layout.add (std::make_unique<AudioParameterBool> (ParameterID { id::bend, 1 }, "BEND", true));
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { id::range, 1 }, "BEND RANGE", rangeChoices(), 0,
                                                             AudioParameterChoiceAttributes().withLabel ("st")));

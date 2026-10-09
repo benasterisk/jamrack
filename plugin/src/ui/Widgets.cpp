@@ -6,8 +6,10 @@ namespace jamrack
 
     //==============================================================================
     Knob::Knob (juce::RangedAudioParameter& p, const juce::String& l, Formatter f)
-        : slider (juce::Slider::RotaryVerticalDrag, juce::Slider::NoTextBox),
+        : param (p),
+          slider (juce::Slider::RotaryVerticalDrag, juce::Slider::NoTextBox),
           attachment (p, slider),
+          resetter (p, [] (float) {}, nullptr),
           label (l),
           format (std::move (f))
     {
@@ -18,11 +20,17 @@ namespace jamrack
         slider.setPopupDisplayEnabled (false, false, nullptr);
         slider.setTitle (label);
         slider.setWantsKeyboardFocus (false);
+        slider.setMouseCursor (juce::MouseCursor::UpDownResizeCursor);   // the web knob's ns-resize
         slider.onValueChange = [this] { repaint (valueArea.getSmallestIntegerContainer()); };
         addAndMakeVisible (slider);
 
         valueFont = fonts->get (Face::mono, 12.5f);
         labelFont = fonts->get (Face::labelMedium, 12.0f, 0.12f);
+    }
+
+    void Knob::resetToDefault()
+    {
+        resetter.setValueAsCompleteGesture (param.convertFrom0to1 (param.getDefaultValue()));
     }
 
     void Knob::resized()
@@ -81,19 +89,24 @@ namespace jamrack
 
     void Stepper::resized()
     {
-        // [ - ] [ 0 ] [ + ] over the label (.stepper-ctl: 24 px buttons, 34 px readout)
+        // [ - ] [ 0 ] [ + ] with the label right under it (.stepper-ctl: square buttons,
+        // LCD readout); the label sits 1 px below so that it reads as this stepper's
+        // name, not the next row's
         const float h = 26.0f, b = 26.0f, gap = 4.0f;
         const float readW = (float) getWidth() - 2.0f * (b + gap);
         minus.setBounds (0, 0, (int) b, (int) h);
         plus.setBounds (getWidth() - (int) b, 0, (int) b, (int) h);
         readout = { b + gap, 0.0f, readW, h };
-        labelArea = { 0.0f, h + 3.0f, (float) getWidth(), 15.0f };
+        labelArea = { 0.0f, h + 1.0f, (float) getWidth(), 14.0f };
     }
 
     void Stepper::paint (juce::Graphics& g)
     {
         drawRecessed (g, readout, 4.0f, lcdBg);
-        const auto text = (signedDisplay && value > 0) ? "+" + juce::String (value) : juce::String (value);
+        // U+2212 for negatives: as wide as "+", centred like it
+        const auto text = value > 0 ? (signedDisplay ? "+" : "") + juce::String (value)
+                                    : (value < 0 ? juce::String (juce::CharPointer_UTF8 ("\xe2\x88\x92")) + juce::String (-value)
+                                                 : juce::String ("0"));
         g.setFont (valueFont);
         g.setColour (lcdTxt);
         g.drawText (text, readout.translated (0.0f, 0.5f), juce::Justification::centred, false);
@@ -102,8 +115,13 @@ namespace jamrack
         g.drawText (label, labelArea, juce::Justification::centred, false);
     }
 
-    void Stepper::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
+    void Stepper::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
     {
+        if (! wheelEnabled)
+        {
+            Component::mouseWheelMove (e, wheel);   // passed on to the parent, never a step
+            return;
+        }
         wheelAccum += wheel.deltaY * (wheel.isReversed ? -1.0f : 1.0f);
         if (std::abs (wheelAccum) >= 0.12f)
         {
@@ -119,10 +137,10 @@ namespace jamrack
     }
 
     //==============================================================================
-    Segmented::Segmented (juce::RangedAudioParameter& p, const juce::StringArray& segs, bool leds, const juce::String& cap)
+    Segmented::Segmented (juce::RangedAudioParameter& p, const juce::StringArray& segs, Look l, const juce::String& cap)
         : param (p),
           segments (segs),
-          withLeds (leds),
+          look (l),
           caption (cap),
           attachment (p, [this] (float v)
                       {
@@ -130,8 +148,8 @@ namespace jamrack
                           repaint();
                       }, nullptr)
     {
-        textFont = withLeds ? fonts->get (Face::labelSemi, 14.0f, 0.12f) : fonts->get (Face::monoMedium, 12.5f);
-        supFont = fonts->get (Face::brand, 8.5f);
+        textFont = look == Look::switches ? fonts->get (Face::labelSemi, 14.0f, 0.12f) : fonts->get (Face::monoMedium, 12.5f);
+        supFont = fonts->get (Face::brand, 10.0f);
         captionFont = fonts->get (Face::labelMedium, 12.0f, 0.14f);
         setTitle (caption.isNotEmpty() ? caption : param.getName (32));
         attachment.sendInitialUpdate();
@@ -150,12 +168,27 @@ namespace jamrack
         if (caption.isNotEmpty())
         {
             strip = r.removeFromTop (26.0f);
-            captionArea = juce::Rectangle<float> (r.getX(), strip.getBottom() + 3.0f, r.getWidth(), 15.0f);
+            captionArea = juce::Rectangle<float> (r.getX(), strip.getBottom() + 1.0f, r.getWidth(), 14.0f);
         }
         else
         {
-            strip = r;
+            // switches: the lit button's glow needs room around it (bounds 4 px larger)
+            strip = look == Look::switches ? r.reduced (4.0f) : r;
         }
+    }
+
+    juce::Rectangle<float> Segmented::segmentBounds (int i) const
+    {
+        const int n = juce::jmax (1, segments.size());
+        if (look == Look::switches)
+        {
+            // separate buttons, 6 px apart (.layout-switch gap)
+            const float gap = 6.0f;
+            const float w = (strip.getWidth() - gap * (float) (n - 1)) / (float) n;
+            return { strip.getX() + (w + gap) * (float) i, strip.getY(), w, strip.getHeight() };
+        }
+        const float w = strip.getWidth() / (float) n;
+        return { strip.getX() + w * (float) i, strip.getY(), w, strip.getHeight() };
     }
 
     int Segmented::segmentAt (juce::Point<float> p) const
@@ -190,8 +223,13 @@ namespace jamrack
         repaint();
     }
 
-    void Segmented::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& wheel)
+    void Segmented::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel)
     {
+        if (! wheelEnabled)
+        {
+            Component::mouseWheelMove (e, wheel);   // passed on to the parent, never a switch
+            return;
+        }
         wheelAccum += wheel.deltaY * (wheel.isReversed ? -1.0f : 1.0f);
         if (std::abs (wheelAccum) >= 0.12f)
         {
@@ -205,32 +243,52 @@ namespace jamrack
         const int n = segments.size();
         if (n == 0)
             return;
-        drawButtonFace (g, strip, 6.0f, false, false, false);
-        const float w = strip.getWidth() / (float) n;
+        if (look == Look::lcd)
+            drawButtonFace (g, strip, 6.0f, false, false, false);
 
         for (int i = 0; i < n; ++i)
         {
-            const auto seg = juce::Rectangle<float> (strip.getX() + w * (float) i, strip.getY(), w, strip.getHeight());
+            const auto seg = segmentBounds (i);
             const bool on = i == selected;
             const bool hover = i == hovered && ! on;
 
-            if (on)
-                drawButtonFace (g, seg.reduced (2.0f), 4.5f, false, false, true);
-            else if (i > 0 && i - 1 != selected)
+            juce::Colour colour;
+            if (look == Look::switches)
             {
-                g.setColour (lineSoft);
-                g.drawVerticalLine ((int) std::round (seg.getX()), seg.getY() + 6.0f, seg.getBottom() - 6.0f);
+                if (on)
+                {
+                    // lit like the web's .layout-switch button.on: amber face, dark text
+                    g.setColour (amber.withAlpha (0.12f));
+                    g.fillRoundedRectangle (seg.expanded (3.0f), 8.5f);
+                    g.setColour (amber.withAlpha (0.10f));
+                    g.fillRoundedRectangle (seg.expanded (1.5f), 7.0f);
+                    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffffc46b), 0.0f, seg.getY(),
+                                                             juce::Colour (0xfff0a040), 0.0f, seg.getBottom(), false));
+                    g.fillRoundedRectangle (seg, 6.0f);
+                    g.setColour (juce::Colours::white.withAlpha (0.35f));
+                    g.drawLine (seg.getX() + 6.0f, seg.getY() + 1.0f, seg.getRight() - 6.0f, seg.getY() + 1.0f, 1.0f);
+                    g.setColour (amber);
+                    g.drawRoundedRectangle (seg.reduced (0.5f), 6.0f, 1.0f);
+                    colour = juce::Colour (0xff14100a);
+                }
+                else
+                {
+                    drawButtonFace (g, seg, 6.0f, hover, false, false);
+                    colour = hover ? txt.withAlpha (0.85f) : dim;
+                }
+            }
+            else
+            {
+                if (on)
+                    drawButtonFace (g, seg.reduced (2.0f), 4.5f, false, false, true);
+                else if (i > 0 && i - 1 != selected)
+                {
+                    g.setColour (lineSoft);
+                    g.drawVerticalLine ((int) std::round (seg.getX()), seg.getY() + 6.0f, seg.getBottom() - 6.0f);
+                }
+                colour = on ? lcdTxt : (hover ? txt.withAlpha (0.8f) : dim);
             }
 
-            auto textArea = seg;
-            if (withLeds)
-            {
-                const float ledR = 3.6f;
-                drawLed (g, { seg.getX() + 13.0f, seg.getCentreY() }, ledR, amber, on, 0.8f);
-                textArea = seg.withTrimmedLeft (22.0f).withTrimmedRight (4.0f);
-            }
-
-            const auto colour = on ? (withLeds ? txt : lcdTxt) : (hover ? txt.withAlpha (0.8f) : dim);
             g.setFont (textFont);
             g.setColour (colour);
             if (i == supSegment && supText.isNotEmpty())
@@ -238,17 +296,16 @@ namespace jamrack
                 // text + superscript, centred together
                 const float tw = juce::GlyphArrangement::getStringWidth (textFont, segments[i]);
                 const float sw = juce::GlyphArrangement::getStringWidth (supFont, supText);
-                const float x0 = textArea.getCentreX() - (tw + 2.0f + sw) * 0.5f;
-                g.drawText (segments[i], juce::Rectangle<float> (x0, textArea.getY(), tw + 4.0f, textArea.getHeight()),
+                const float x0 = seg.getCentreX() - (tw + 2.0f + sw) * 0.5f;
+                g.drawText (segments[i], juce::Rectangle<float> (x0, seg.getY(), tw + 4.0f, seg.getHeight()),
                             juce::Justification::centredLeft, false);
                 g.setFont (supFont);
-                g.setColour (colour.withMultipliedAlpha (0.85f));
-                g.drawText (supText, juce::Rectangle<float> (x0 + tw + 2.0f, textArea.getY() - 5.0f, sw + 4.0f, textArea.getHeight()),
+                g.drawText (supText, juce::Rectangle<float> (x0 + tw + 2.0f, seg.getY() - 5.0f, sw + 4.0f, seg.getHeight()),
                             juce::Justification::centredLeft, false);
             }
             else
             {
-                g.drawText (segments[i], textArea, juce::Justification::centred, false);
+                g.drawText (segments[i], seg, juce::Justification::centred, false);
             }
         }
 
@@ -299,6 +356,7 @@ namespace jamrack
     Lcd::Lcd()
     {
         font = fonts->get (Face::mono, 15.0f);
+        altFont = fonts->get (Face::brand, 12.0f);   // the arrow and beta the mono subset lacks
     }
 
     void Lcd::setText (const juce::String& t, bool warn)
@@ -314,39 +372,56 @@ namespace jamrack
     {
         const auto r = getLocalBounds().toFloat();
         drawRecessed (g, r, 5.0f, lcdBg);
-        const auto colour = warning ? juce::Colour (0xffff8a7a) : lcdTxt;
+        const auto colour = warning ? warnText : lcdTxt;
         glow.draw (g, text, font, r.reduced (12.0f, 0.0f).translated (0.0f, 0.5f), juce::Justification::centredLeft,
-                   colour, (warning ? red : lcdTxt).withAlpha (0.45f), 6.0f);
+                   colour, (warning ? red : lcdTxt).withAlpha (0.45f), 6.0f, &altFont);
     }
 
     //==============================================================================
     Footer::Footer (const juce::String& b) : build (b)
     {
         buildFont = fonts->get (Face::mono, 11.0f);
-        warnFont = fonts->get (Face::monoMedium, 11.0f);
         setInterceptsMouseClicks (false, false);
-    }
-
-    void Footer::setWarning (const juce::String& w)
-    {
-        if (w == warning)
-            return;
-        warning = w;
-        repaint();
     }
 
     void Footer::paint (juce::Graphics& g)
     {
-        const auto r = getLocalBounds().toFloat();
-        const float bw = juce::GlyphArrangement::getStringWidth (buildFont, build);
         g.setFont (buildFont);
         g.setColour (dim);
-        g.drawText (build, r, juce::Justification::centredRight, false);
-        if (warning.isNotEmpty())
+        g.drawText (build, getLocalBounds().toFloat(), juce::Justification::centredRight, false);
+    }
+
+    //==============================================================================
+    ResetButton::ResetButton (const juce::String& name) : juce::Button (name)
+    {
+        setWantsKeyboardFocus (false);
+        setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    }
+
+    void ResetButton::paintButton (juce::Graphics& g, bool hover, bool down)
+    {
+        const auto r = getLocalBounds().toFloat();
+        if (hover || down)
         {
-            g.setFont (warnFont);
-            g.setColour (juce::Colour (0xffff8a7a));
-            g.drawText (warning, r.withTrimmedRight (bw + 18.0f), juce::Justification::centredRight, false);
+            g.setColour (juce::Colours::white.withAlpha (0.05f));
+            g.fillRoundedRectangle (r, 5.0f);
         }
+        // an open circle, gap at the top, arrowhead at its upper right end turning
+        // anticlockwise (the web's U+21BA, drawn: the embedded faces lack it)
+        const auto c = r.getCentre().translated (0.0f, down ? 0.6f : 0.0f);
+        const float rad = 4.6f;
+        const float a0 = juce::MathConstants<float>::pi * 0.18f, a1 = juce::MathConstants<float>::pi * 1.80f;
+        juce::Path arc;
+        arc.addCentredArc (c.x, c.y, rad, rad, 0.0f, a0, a1, true);
+        const auto colour = hover || down ? amber : dim.withMultipliedAlpha (0.7f);
+        g.setColour (colour);
+        g.strokePath (arc, juce::PathStrokeType (1.3f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+        const juce::Point<float> tip (c.x + rad * std::sin (a0), c.y - rad * std::cos (a0));
+        const juce::Point<float> dir (-std::cos (a0), -std::sin (a0));      // anticlockwise tangent
+        const juce::Point<float> side (-dir.y, dir.x);
+        juce::Path head;
+        head.addTriangle (tip + dir * 2.6f, tip - dir * 1.4f + side * 2.4f, tip - dir * 1.4f - side * 2.4f);
+        g.fillPath (head);
     }
 }

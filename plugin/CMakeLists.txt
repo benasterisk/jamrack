@@ -148,8 +148,29 @@ juce_add_plugin(midpluck
   IS_MIDI_EFFECT FALSE
   EDITOR_WANTS_KEYBOARD_FOCUS FALSE
   VST3_CATEGORIES "Fx" "Tools"
-  COPY_PLUGIN_AFTER_BUILD ${JAMRACK_COPY_AFTER_BUILD}
+  # the copy step is enabled below, after the licence files are in the bundle
+  COPY_PLUGIN_AFTER_BUILD FALSE
   VST3_COPY_DIR "${JAMRACK_VST3_DIR}")
+
+# The fonts embedded in the editor are under the SIL OFL 1.1, whose condition 2
+# asks every copy to carry the copyright notice and the licence: the three
+# OFL.txt files go into the bundle (MidPluck.vst3/Contents/Resources), so any
+# zip or Release of the bundle ships them. POST_BUILD commands run in the order
+# they are added: this one before JUCE's copy into JAMRACK_VST3_DIR.
+get_target_property(MIDPLUCK_VST3_BUNDLE midpluck_VST3 JUCE_PLUGIN_ARTEFACT_FILE)
+add_custom_command(TARGET midpluck_VST3 POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${MIDPLUCK_VST3_BUNDLE}/Contents/Resources"
+  COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/unbounded/OFL.txt"
+          "${MIDPLUCK_VST3_BUNDLE}/Contents/Resources/OFL-Unbounded.txt"
+  COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/barlowcondensed/OFL.txt"
+          "${MIDPLUCK_VST3_BUNDLE}/Contents/Resources/OFL-BarlowCondensed.txt"
+  COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_CURRENT_SOURCE_DIR}/resources/fonts/splinesansmono/OFL.txt"
+          "${MIDPLUCK_VST3_BUNDLE}/Contents/Resources/OFL-SplineSansMono.txt"
+  COMMENT "MidPluck: font licences into the bundle"
+  VERBATIM)
+if(JAMRACK_COPY_AFTER_BUILD)
+  juce_enable_copy_plugin_step(midpluck)
+endif()
 
 # The editor (src/PluginEditor.cpp + src/ui/): the JAMRACK look, with the web
 # app's three typefaces embedded as binary data (resources/fonts, SIL OFL 1.1,

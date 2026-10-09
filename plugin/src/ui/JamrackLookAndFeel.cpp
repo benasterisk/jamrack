@@ -226,16 +226,27 @@ namespace jamrack
 
     void LookAndFeel::drawCornerResizer (juce::Graphics& g, int w, int h, bool isMouseOver, bool isMouseDragging)
     {
-        // three engraved diagonal grooves, amber while dragged
-        const auto colour = (isMouseOver || isMouseDragging) ? colours::amber.withAlpha (0.8f) : colours::line.brighter (0.25f);
-        const float s = (float) juce::jmin (w, h);
+        // Three grooves engraved in the metal of the face's bottom-right corner. The
+        // editor sizes the grip with the face (18 x 18 at the base size), so u is the
+        // face's scale: the grooves sit inside the plate (2 px in, 10 px radius) and are
+        // clipped to it, never crossing its border. Amber while hovered or dragged.
+        const float u = (float) juce::jmin (w, h) / 18.0f;
+        const auto corner = juce::Point<float> ((float) w - 2.5f * u, (float) h - 2.5f * u);
+        juce::Path plate;
+        plate.addRoundedRectangle (corner.x - 200.0f, corner.y - 200.0f, 200.0f, 200.0f, 9.5f * u);
+        juce::Graphics::ScopedSaveState state (g);
+        g.reduceClipRegion (plate);
+
+        const auto colour = (isMouseOver || isMouseDragging) ? colours::amber.withAlpha (0.8f) : colours::line.brighter (0.3f);
+        const float x1 = corner.x - 3.5f * u, y1 = corner.y - 3.5f * u;
+        const float line = juce::jmax (1.0f, u);
         for (int i = 1; i <= 3; ++i)
         {
-            const float o = s * (float) i / 4.0f;
-            g.setColour (juce::Colours::black.withAlpha (0.5f));
-            g.drawLine ((float) w - o, (float) h + 0.8f, (float) w + 0.8f, (float) h - o, 1.6f);
+            const float o = 3.6f * u * (float) i;
+            g.setColour (juce::Colours::black.withAlpha (0.55f));
+            g.drawLine (x1 - o, y1 + 0.9f * u, x1 + 0.9f * u, y1 - o, 1.4f * line);
             g.setColour (colour);
-            g.drawLine ((float) w - o, (float) h - 0.6f, (float) w - 0.6f, (float) h - o, 1.0f);
+            g.drawLine (x1 - o, y1 - 0.3f * u, x1 - 0.3f * u, y1 - o, line);
         }
     }
 
@@ -402,18 +413,60 @@ namespace jamrack
         }
     }
 
+    bool needsBrandGlyph (juce::juce_wchar c) noexcept
+    {
+        return c == 0x2192 || c == 0x03b2;    // the arrow and beta: only Unbounded has them
+    }
+
+    juce::GlyphArrangement arrangeLine (const juce::String& text, const juce::Font& font, const juce::Font& alt,
+                                        juce::Rectangle<float> area, juce::Justification just)
+    {
+        juce::GlyphArrangement ga;
+        float x = 0.0f;
+        auto p = text.getCharPointer();
+        while (! p.isEmpty())
+        {
+            // one run of characters that share a face
+            const bool brand = needsBrandGlyph (*p);
+            auto start = p;
+            while (! p.isEmpty() && needsBrandGlyph (*p) == brand)
+                ++p;
+            const juce::String run (start, p);
+            const auto& f = brand ? alt : font;
+            ga.addLineOfText (f, run, x, 0.0f);
+            x += juce::GlyphArrangement::getStringWidth (f, run);
+        }
+        ga.justifyGlyphs (0, ga.getNumGlyphs(), area.getX(), area.getY(), area.getWidth(), area.getHeight(), just);
+        return ga;
+    }
+
+    void GlowText::drawText (juce::Graphics& g) const
+    {
+        if (hasAlt)
+        {
+            arrangeLine (text, font, altFont, area, just).draw (g);
+            return;
+        }
+        g.setFont (font);
+        g.drawText (text, area, just, false);
+    }
+
     void GlowText::draw (juce::Graphics& g, const juce::String& newText, const juce::Font& newFont,
                          juce::Rectangle<float> newArea, juce::Justification newJust,
-                         juce::Colour textColour, juce::Colour glowColour, float newRadius)
+                         juce::Colour textColour, juce::Colour glowColour, float newRadius, const juce::Font* alt)
     {
         const float ps = physicalScale (g);
         if (newText.isEmpty())
             return;
-        if (newText != text || newFont != font || newArea != area || newJust != just
-            || newRadius != radius || ps != scale || halo.isNull())
+        const bool newHasAlt = alt != nullptr;
+        if (newText != text || newFont != font || newArea != area || newJust != just || newHasAlt != hasAlt
+            || (newHasAlt && *alt != altFont) || newRadius != radius || ps != scale || halo.isNull())
         {
             text = newText;
             font = newFont;
+            hasAlt = newHasAlt;
+            if (hasAlt)
+                altFont = *alt;
             area = newArea;
             just = newJust;
             radius = newRadius;
@@ -430,8 +483,7 @@ namespace jamrack
                 juce::Graphics mg (mask);
                 mg.addTransform (juce::AffineTransform::translation (-haloArea.getX(), -haloArea.getY()).scaled (haloScale));
                 mg.setColour (juce::Colours::white);
-                mg.setFont (font);
-                mg.drawText (text, area, just, false);
+                drawText (mg);
             }
             blurSingleChannel (mask, radius * 0.5f * haloScale);   // CSS blur radius = 2 sigma
             halo = mask;
@@ -443,7 +495,6 @@ namespace jamrack
             g.drawImageTransformed (halo, juce::AffineTransform::scale (1.0f / haloScale).translated (haloArea.getX(), haloArea.getY()), true);
         }
         g.setColour (textColour);
-        g.setFont (font);
-        g.drawText (text, area, just, false);
+        drawText (g);
     }
 }
