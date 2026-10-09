@@ -191,6 +191,10 @@ Le plugin installé, passé dans un hôte VST3 de test (`jamrack_vst3_probe`) :
   fichier propre ;
 - pluginval niveau 5 : SUCCESS (aussi niveau 10 répété) ; validateur Steinberg :
   47 / 47 ; rappel d'état : 11 réglages sur 11 restitués.
+- **Live 12.4.6 Trial l'a scanné** au démarrage du 9 octobre (2 h 43) : sa base de
+  plugins contient « MidPluck, OpenMindLab, 0.1.0 », classé effet audio
+  (`device:vst3:audiofx`, Fx|Tools), activé. Le test joué dans Live n'a pas pu être
+  fait cette nuit : la session Windows s'est verrouillée.
 
 Coût (PC du propriétaire) :
 - MONO : 1,6 % d'un cœur (la page web : 2,9 %) ;
