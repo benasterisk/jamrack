@@ -17,7 +17,7 @@ aux changements de session. Détails : `docs/local-setup.md`.
   seulement, pour l'instant). Moteur : `js/audio/engine.js` (bus `dry` →
   master ; `latencyHint: 0` sur desktop).
 - Tests : `node --test test/guitar-tracker.test.mjs test/looper-core.test.mjs
-  test/poly-engine.test.mjs test/poly-calibrate.test.mjs` (43 tests, ~30 s,
+  test/poly-engine.test.mjs test/poly-calibrate.test.mjs` (44 tests, ~30 s,
   Node 20+).
 - Le propriétaire (benasterisk) ne code pas lui-même : il dirige, teste à la
   guitare et décide du périmètre. Répondre **en français**, sans jargon
@@ -83,6 +83,114 @@ aux changements de session. Détails : `docs/local-setup.md`.
   MONO → M3 POLY bêta) : `docs/plugin-plan.md`, section 6 pour le message à
   coller dans la session locale. Le JS reste le moteur canonique ; le C++
   lui est tenu par l'oracle note pour note (section 4 du plan).
+
+## Plugin VST3 — état exact
+
+- **Jalon M0 fait (7 octobre 2026, branche `feature/plugin`)** : deux
+  prototypes **jetables** dans `plugin/m0/` (aucun DSP de guitare : un
+  détecteur d'attaque joue un do 60 tenu 600 ms avec un bend d'un demi-ton
+  aller-retour entre 100 et 400 ms) pour mesurer Live 12 : **JAMRACK GTM Fx**
+  (`Gtm0`, effet, audio passe-tout) et **JAMRACK GTM Inst** (`Gtm9`,
+  instrument dont la seule entrée est un bus *side-chain* auxiliaire,
+  `getPluginHasMainInput() = false`). `plugin/CMakeLists.txt` : JUCE 8.0.15
+  par FetchContent (jamais copié), runtime MSVC statique, `/fp:precise`,
+  version + hash git court (calculé à chaque build par `plugin/cmake/git_hash.cmake`, « + » = modifications non commitées) dans l'éditeur, copie
+  dans `D:\VST3` (`JAMRACK_COPY_AFTER_BUILD`). pluginval 1.0.4 niveau 5 :
+  SUCCESS sur les deux. Revue adversariale (5 angles, 3 sceptiques par constat) : 13 constats confirmés, tous corrigés. CI `.github/workflows/plugin.yml` (Windows : build +
+  pluginval + artefact). `plugin/README.md` : check-list de la soirée M0,
+  modèle de compte rendu, retour arrière, avis de licence.
+- **Outillage local (installé le 7 octobre)** : CMake 4.4.4 (winget, portée
+  utilisateur, sur le PATH utilisateur ; une fenêtre ouverte avant
+  l'installation ne le voit pas), MSVC des **Build Tools 2022** (la
+  Community 2022 n'a pas la charge C++) → générateur **« Visual Studio 17
+  2022 »**, pluginval 1.0.4 dans `D:\tools\pluginval\`, dossiers `D:\VST3` et
+  `D:\VST3-archive`. Build : `cmake -S plugin -B plugin/build -G "Visual
+  Studio 17 2022" -A x64` puis `cmake --build plugin/build --config Release`
+  (Live et REAPER **fermés**). Live 12.4.6 **Trial** installé depuis
+  (`C:\ProgramData\Ableton\Live 12 Trial`, bibliothèque utilisateur
+  `C:\Users\benas\OneDrive\Documents\Ableton\User Library`) ; le 8 octobre
+  sa base de plugins était vide (dossier VST3 `D:\VST3` pas encore déclaré).
+  Validateur officiel Steinberg : SDK VST3 3.8.1 cloné et compilé dans
+  `D:\tools\vst3sdk` (`build\bin\Release\validator.exe <bundle>`).
+- **Contre-épreuve REAPER faite par le propriétaire le 7 octobre** (PC
+  portable, micro intégré, WASAPI) : do, bend et enregistrement MIDI OK.
+- **Live 12.4.6 Trial, 8 octobre : test 1 réussi** (propriétaire) : l'**effet**
+  JAMRACK GTM Fx est accepté dans *MIDI From* et le synthé joue → M2 garde la
+  forme « effet audio avec sortie MIDI ». Bend entendu (micro et casque du
+  PC). Test 2 : Live a refusé l'Inst (« no valid event input bus » :
+  Live exige une entrée MIDI sur tout instrument VST3, pluginval et le
+  validateur Steinberg non) → `NEEDS_MIDI_INPUT` pour l'Inst (d33d256), à
+  réessayer (section Sidechain de l'appareil à allumer, Mix 100 %).
+- **Décision du propriétaire, 8 octobre : on reste sur l'EFFET (Fx).** Test 2
+  (Inst, 3 pistes, « usine à gaz ») abandonné ; pas d'hôte de synthé dans le
+  plugin pour l'instant (option possible après M2 : seulement des VST tiers,
+  pas les instruments de Live). Dans Live, 2 pistes est le minimum (une piste
+  audio ne contient pas d'instrument et Live ne passe pas le MIDI d'un plugin
+  à l'appareil suivant). Restent pour M0 : armement, latence.
+- **Nom choisi le 8 octobre : MidPluck** (recherche web rapide : aucun
+  produit de ce nom ; pas de vérification de marque). Identité prévue :
+  `PRODUCT_NAME "MidPluck"`, `COMPANY_NAME "OpenMindLab"`, codes `Omlb` /
+  `Mdpk`, version 0.1.0, effet (Fx). Le propriétaire a demandé MONO **et**
+  POLY ensemble : port C++ des deux moteurs (`plugin/dsp/`, contrats
+  `events.h`, `jsmath.h`, `tools/dump_common.h`), oracle note pour note
+  (`test/render-plucks.mjs`, `test/diff-events.mjs`, dumps JS dans
+  `D:\poly-out`) et coque VST3 (`plugin/src/`) lancés en parallèle (workflow
+  `midpluck-mono-poly`).
+- **Nuit du 7 au 8 octobre (session autonome ; Live non pilotable, l'accès
+  au bureau demande un clic)** : hôte VST3 de test en ligne de commande
+  `plugin/tools/vst3_probe.cpp` (cible `jamrack_vst3_probe` ; options bypass
+  et `--reprepare-at`) + `plugin/m0/check_probe.py` (**62/62**, détail dans
+  le README) ; deux revues adversariales (63 puis 6 agents). Corrigé :
+  détecteur M0 devenu un détecteur de **montée** (énergie 5 ms > −45 dBFS et
+  > 2 × énergie 30 ms, réarmement sous 1,25 ×, enveloppes conservées au
+  reset/bypass, garde NaN) ; l'ancien (−30 dBFS, réarmement sous −40)
+  bloquait une corde qui sonne (1 note sur 10) et devenait muet sous −24 dBFS
+  de crête. GuitarSet (`plugin/m0/sim_detector.py`) : 72/73/71/61 %
+  d'attaques attrapées à −6/−12/−18/−24 dBFS contre 39/37/13/0 %. Programme
+  par défaut nommé (validateur Steinberg 47/47). Check-list : étape
+  « niveau » et diagnostic par le compteur « notes sent ».
+- **CI jamais exécutée** : Actions activé sur le dépôt, YAML valide, mais
+  GitHub ne crée aucune exécution (pas de suite Actions sur la PR #6, et les
+  suites `github-pages` restent « queued ») : blocage probable côté compte,
+  à regarder par le propriétaire sur github.com/benasterisk/jamrack/actions.
+- **MidPluck 0.1.0 fait (nuit du 8 au 9 octobre, jalons M1 + M2 + M3 réunis,
+  build `be2b6b7` installé dans `D:\VST3\MidPluck.vst3`)** : moteurs C++ dans
+  `plugin/dsp/` (MONO `mono_tracker`, POLY `poly/*` avec `PolyEngineState`),
+  **identiques au JS au bit près** (fonctions de V8 reprises dans
+  `poly/v8math.h` : sin, cos, log, log10, hypot, plus log2 dans
+  `mono_tracker.cpp`) : MONO GuitarSet 3 361 / 3 361 notes, POLY livré
+  4 141 / 4 141, dense 4 174 / 4 174, corpus synthétique 673 / 673, écart
+  `score.py` 0,0 point. Outils : `tools/dump_events` (même JSON que les dumps
+  JS), `test/render-plucks.mjs` (112 signaux, ctest `oracle_synthetic`),
+  `test/diff-events.mjs`, `tools/gen-profile-header.mjs --check`. Coque
+  `plugin/src/` : réglages du plan 3.1 avec MODE (MONO / POLY bêta) et BYPASS,
+  OCTAVE/TRANSPOSE/MIDI CH à crans (`SteppedInt`), flushs du plan 3.2, état
+  POLY construit sur un fil de fond, entrée NaN/Inf remplacée par 0 avant les
+  moteurs. pluginval 5 SUCCESS, Steinberg 47/47, rappel d'état OK, sortie du
+  plugin = sortie des moteurs (vst3_probe étendu : `--param`, `--param-at`,
+  `--state-test`, `--warmup-ms`). Coût : MONO 1,6 % d'un cœur, POLY 0,22 ms
+  par pas (budget 2,67 ms) : ECO éteint à 44,1/48 kHz. Prototypes M0 rangés
+  dans `D:\VST3-archive\m0`, plus construits (sources gardées). Écart voulu :
+  le passage POLY → MONO remet MONO à zéro dans le plugin, pas dans
+  `worklet.js` (décision du propriétaire à prendre).
+- **Interface au style JAMRACK (9 octobre, build `7ac59fb` installé ; l'ancien
+  `be2b6b7` est dans `D:\VST3-archive`)** : demandée par le propriétaire
+  (« design pas beau »). `plugin/src/ui/` (LookAndFeel, widgets, écran
+  TUNER/VOICES), façade 960 x 240 (4:1, 100-200 %) : vis de rack, LCD ambre
+  avec des états en mots simples, potards ambre lumineux, sélecteur
+  MONO | POLY β, BYPASS, voyant NOTE OUT, ↺ par section, réglages MONO seuls
+  grisés en POLY ; polices OFL embarquées (`plugin/resources/fonts/`, licences
+  copiées dans le bundle). Textes côté hôte : GAIN en dB, SENS/DECAY/DYN 0-100.
+  Molette désactivée sur MODE et MIDI CH (choix réversible). Outil
+  `tools/ui_snapshot.cpp` (cible `midpluck_ui_snapshot`) : 22 captures hors
+  écran et 107 vérifications. pluginval 5 avec tests d'interface SUCCESS,
+  Steinberg 47/47, MIDI identique à la version précédente. Fenêtre pas encore
+  ouverte dans un vrai DAW par la session.
+- **Suite** : soirée MidPluck du propriétaire (check-list de
+  `plugin/README.md` : MONO, latence au téléphone 64/128/256 contre la page
+  web, POLY et tag ECO, décalage d'enregistrement, armement), compte rendu,
+  puis PR vers `main` et Release GitHub `plugin-v0.1.0` (la CI n'a encore
+  jamais tourné côté GitHub).
 
 ## POLY (polyphonie) — état exact
 
