@@ -92,7 +92,7 @@ aux changements de session. Détails : `docs/local-setup.md`.
   `docs/variax-research/`). Conclusions : les six signaux existent, propres et
   séparés, entre le pont et les trois convertisseurs de la carte principale,
   et **aucune prise ne les sort** (jack = somme modélisée ; RJ-45 VDI = un
-  flux AES3 stéréo + MIDI + alimentation). Voie recommandée (A) : souder six
+  flux AES3 stéréo + MIDI de commande SysEx, jamais de notes + alimentation). Voie recommandée (A) : souder six
   fils à la sortie des six ampli-op (côté ampli-op de la résistance de 1 kΩ
   avant chaque codec), 100 Ω + condensateur de liaison + diode TVS par corde,
   vers une prise 13 broches façon Roland (broches 12/13 ±7 V isolées), éventail
