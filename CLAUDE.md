@@ -84,6 +84,32 @@ aux changements de session. Détails : `docs/local-setup.md`.
   coller dans la session locale. Le JS reste le moteur canonique ; le C++
   lui est tenu par l'oracle note pour note (section 4 du plan).
 
+## Variax 300 : six signaux piézo (11 novembre 2026)
+
+- Le propriétaire possède une Line 6 Variax 300 (un piézo par pontet). Avant
+  toute simulation ou code, il a demandé **comment récupérer les six signaux**.
+  Note sourcée : `docs/variax-hex-signal.md` (recherche dans
+  `docs/variax-research/`). Conclusions : les six signaux existent, propres et
+  séparés, entre le pont et les trois convertisseurs de la carte principale,
+  et **aucune prise ne les sort** (jack = somme modélisée ; RJ-45 VDI = un
+  flux AES3 stéréo + MIDI + alimentation). Voie recommandée (A) : souder six
+  fils à la sortie des six ampli-op (côté ampli-op de la résistance de 1 kΩ
+  avant chaque codec), 100 Ω + condensateur de liaison + diode TVS par corde,
+  vers une prise 13 broches façon Roland (broches 12/13 ±7 V isolées), éventail
+  vers une interface à six entrées (UMC1820 ~169 EUR ; la Gigcaster 5 n'a pas
+  six entrées). Un seul précédent (D. Ryan, 2008, carte 300 transplantée) ;
+  l'ingénieur Line 6 déconseille ; carte de rechange peut-être introuvable.
+  **Ordre imposé** : séance photo et mesures de la carte (§4), puis essai à
+  **une seule corde, à coût nul** dans l'entrée INST de la Gigcaster (§4 bis),
+  et seulement ensuite six fils, prise, interface. Plan B sans risque : GK-3
+  sur une autre guitare. Un navigateur ne capture que deux canaux : six cordes
+  = plugin ou exécutable natif, REAPER avant Live.
+- Suite logicielle possible, **non lancée** (le propriétaire a demandé de
+  comprendre le matériel d'abord) : six trackers MONO (un par corde, plage de
+  hauteur bornée par `fmin/fmax`) sur les pistes hexaphoniques GuitarSet
+  (`audio_hex-pickup_debleeded`, pistes « debleeded » donc optimistes), à
+  comparer à MONO et POLY sur le mix avec `test/score.py`.
+
 ## POLY (polyphonie) — état exact
 
 - **Décisions du propriétaire** (plan §0) : sélecteur **MONO / POLY** sur la
